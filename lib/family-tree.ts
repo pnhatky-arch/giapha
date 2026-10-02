@@ -59,7 +59,7 @@ function createSampleFamily(): FamilyPerson {
     id: nextId++,
     name: fifthGeneration[fifthIndex++],
     generation: 5,
-    relationship: `Chút của ${parentName}`,
+    relationship: `Con của ${parentName}`,
     birthDate: `201${(fifthIndex + index) % 10}-0${(fifthIndex % 8) + 1}-15`,
   }));
 
@@ -69,7 +69,7 @@ function createSampleFamily(): FamilyPerson {
       id: nextId++,
       name,
       generation: 4,
-      relationship: `Chắt của ${parentName}`,
+      relationship: `Con của ${parentName}`,
       birthDate: `198${fourthIndex % 10}-0${(fourthIndex % 8) + 1}-12`,
       children: makeFifthGeneration(name, fourthIndex === 1),
     };
@@ -93,7 +93,7 @@ function createSampleFamily(): FamilyPerson {
         id: nextId++,
         name,
         generation: 3,
-        relationship: `Cháu nội của ${second.name}`,
+        relationship: `Con của ${second.name}`,
         birthDate: `197${(secondIndex * 3 + thirdIndex) % 10}-0${thirdIndex + 2}-08`,
         children: makeFourthGeneration(name),
       })),
