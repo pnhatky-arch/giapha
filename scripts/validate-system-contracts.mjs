@@ -41,7 +41,7 @@ has('app/api/events/media/route.ts', "file.type === 'image/svg+xml'", 'event med
 
 // Guest/event UI guards and media UI must be mounted in the real page tree.
 const page = read('app/page.tsx');
-for (const component of ['EventsMediaEnhancements', 'EventsEditPermissionFix', 'EventsCardLayoutFix', 'TombSweepingEvents']) {
+for (const component of ['EventsMediaEnhancements', 'EventsEditPermissionFix', 'EventsCardLayoutFix', 'TombSweepingEvents', 'SystemBackupEnhancements']) {
   assert(page.includes(`<${component}`), `app/page.tsx must mount ${component}`);
 }
 
@@ -51,8 +51,17 @@ has('app/api/family/route.ts', 'clearScopedGenealogyData', 'data-mode switch mus
 has('lib/genealogy-data-reset.ts', "DELETE FROM material_items", 'data reset must clear materials');
 has('lib/genealogy-data-reset.ts', "event_media:", 'data reset must clear event media');
 
+// Backup must cover genealogy-domain data while deliberately excluding credentials and sessions.
+has('app/api/system-backup/route.ts', "scope: 'genealogy-system'", 'system backup must have a versioned genealogy-system scope');
+has('app/api/system-backup/route.ts', 'FROM material_items', 'system backup must include shared materials');
+has('app/api/system-backup/route.ts', 'FROM audit_logs', 'system backup must include audit history');
+has('app/api/system-backup/route.ts', "key.startsWith('event_media:')", 'system backup must include event images');
+has('app/api/system-backup/route.ts', "key.startsWith('material_media_d1:')", 'system backup must include material images/video');
+lacks('app/api/system-backup/route.ts', 'password_hash', 'system backup must not export password hashes');
+lacks('app/api/system-backup/route.ts', 'FROM sessions', 'system backup must not export active sessions');
+
 // Sample fixture expectations remain the load/stress baseline used by the UI.
 has('scripts/validate-sample-data.mjs', 'SAMPLE_MEMBER_COUNT', 'sample fixture validator must verify member count');
 has('scripts/validate-sample-data.mjs', "=== 6", 'sample fixture validator must enforce 6 generations');
 
-console.log('System contracts OK · secrets · auth · audit · D1 media · events · permissions · reset');
+console.log('System contracts OK · secrets · auth · audit · D1 media · events · permissions · reset · backup');
