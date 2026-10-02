@@ -7,7 +7,7 @@ export function getDatabase(): D1Database {
 
 let defaultAdministratorPromise: Promise<void> | undefined;
 
-export const GENEALOGY_AUDIT_ENTITIES = ['Gia phả', 'Thành viên', 'Sự kiện', 'Tư liệu gia phả'] as const;
+export const GENEALOGY_AUDIT_ENTITIES = ['Gia phả', 'Thành viên', 'Sự kiện', 'Tư liệu gia phả', 'Tài khoản', 'Hệ thống'] as const;
 
 export function isGenealogyAuditEntity(entity: string) {
   return (GENEALOGY_AUDIT_ENTITIES as readonly string[]).includes(entity);
@@ -38,6 +38,12 @@ const DEFAULT_ADMIN_SEED_VERSION = 'default_admin_v3';
 const ALL_ADMIN_PERMISSIONS = JSON.stringify(['manage_accounts', 'project_name', 'generations', 'legends', 'menus', 'notifications']);
 const PASSWORD_ITERATIONS = 100_000;
 
+async function markDefaultAdministratorSeeded(db: D1Database, now = Date.now()) {
+  await db.prepare(`INSERT INTO app_settings (key, value, updated_at) VALUES (?, 'complete', ?)
+    ON CONFLICT(key) DO UPDATE SET value = 'complete', updated_at = excluded.updated_at`)
+    .bind(DEFAULT_ADMIN_SEED_VERSION, now).run();
+}
+
 async function ensureDefaultAdministrator(db: D1Database) {
   const seeded = await db.prepare('SELECT value FROM app_settings WHERE key = ?').bind(DEFAULT_ADMIN_SEED_VERSION).first();
   if (seeded) {
@@ -45,18 +51,29 @@ async function ensureDefaultAdministrator(db: D1Database) {
       .bind(ALL_ADMIN_PERMISSIONS, DEFAULT_ADMIN_USERNAME).run();
     return;
   }
-  const password = (env as unknown as { DEFAULT_ADMIN_PASSWORD?: string }).DEFAULT_ADMIN_PASSWORD || DEFAULT_ADMIN_USERNAME;
+
+  // If an administrator already exists, never reset its password just because the
+  // seed marker is missing. Repair only the role/permissions and restore the marker.
+  const existing = await db.prepare('SELECT id FROM users WHERE username = ?').bind(DEFAULT_ADMIN_USERNAME).first<{ id: string }>();
+  if (existing) {
+    await db.prepare(`UPDATE users SET role = 'super_admin', permissions = ?, active = 1 WHERE username = ?`)
+      .bind(ALL_ADMIN_PERMISSIONS, DEFAULT_ADMIN_USERNAME).run();
+    await markDefaultAdministratorSeeded(db);
+    return;
+  }
+
+  const password = (env as unknown as { DEFAULT_ADMIN_PASSWORD?: string }).DEFAULT_ADMIN_PASSWORD?.trim() ?? '';
+  if (password.length < 8) {
+    throw new Error('DEFAULT_ADMIN_PASSWORD must be configured with at least 8 characters before the first administrator account can be created.');
+  }
+
   const salt = randomHex(16);
   const passwordHash = await hashPassword(password, salt);
   const now = Date.now();
   await db.prepare(`INSERT INTO users (id, full_name, username, password_hash, password_salt, role, permissions, active, created_at)
-    VALUES (?, ?, ?, ?, ?, 'super_admin', ?, 1, ?)
-    ON CONFLICT(username) DO UPDATE SET full_name = excluded.full_name, password_hash = excluded.password_hash,
-    password_salt = excluded.password_salt, role = 'super_admin', permissions = excluded.permissions, active = 1`)
+    VALUES (?, ?, ?, ?, ?, 'super_admin', ?, 1, ?)`)
     .bind(crypto.randomUUID(), DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_USERNAME, passwordHash, salt, ALL_ADMIN_PERMISSIONS, now).run();
-  await db.prepare(`INSERT INTO app_settings (key, value, updated_at) VALUES (?, 'complete', ?)
-    ON CONFLICT(key) DO UPDATE SET value = 'complete', updated_at = excluded.updated_at`)
-    .bind(DEFAULT_ADMIN_SEED_VERSION, now).run();
+  await markDefaultAdministratorSeeded(db, now);
 }
 
 async function hashPassword(password: string, saltHex: string) {
