@@ -52,7 +52,7 @@ jobs:
 
       - name: Override vulnerable fflate transitively
         run: |
-          npm pkg set overrides.fflate=0.8.2
+          npm pkg set overrides.fflate=0.8.3
           npm install --package-lock-only --ignore-scripts
 
       - name: Install remediated dependency graph
