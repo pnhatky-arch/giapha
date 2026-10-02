@@ -45,19 +45,34 @@ export default function EventsHueEnhancements() {
     const textSnapshots = new WeakMap<Text, TextSnapshot>();
     const attributeSnapshots = new WeakMap<Element, Map<string, AttributeSnapshot>>();
 
-    const runFilterOrbit = (button: HTMLButtonElement) => {
+    const clearFilterOrbit = () => {
       window.clearTimeout(orbitTimer);
-      document.querySelectorAll('.event-filter-orbit').forEach((node) => node.remove());
-      const orbit = document.createElement('span');
-      orbit.className = 'event-filter-orbit';
-      orbit.setAttribute('aria-hidden', 'true');
+      document.querySelectorAll('.event-filter-gold-trace').forEach((node) => node.remove());
+    };
+
+    const runFilterOrbit = (button: HTMLButtonElement) => {
+      clearFilterOrbit();
+      const rect = button.getBoundingClientRect();
+      if (rect.width < 4 || rect.height < 4) return;
+
+      const computed = window.getComputedStyle(button);
+      const trace = document.createElement('div');
+      trace.className = 'event-filter-gold-trace';
+      trace.style.left = `${rect.left - 2}px`;
+      trace.style.top = `${rect.top - 2}px`;
+      trace.style.width = `${rect.width + 4}px`;
+      trace.style.height = `${rect.height + 4}px`;
+      trace.style.borderRadius = computed.borderRadius || '10px';
+      trace.setAttribute('aria-hidden', 'true');
+
       for (const side of ['top', 'right', 'bottom', 'left']) {
-        const segment = document.createElement('i');
-        segment.className = `event-filter-orbit-segment ${side}`;
-        orbit.appendChild(segment);
+        const segment = document.createElement('span');
+        segment.className = `event-filter-gold-segment ${side}`;
+        trace.appendChild(segment);
       }
-      button.appendChild(orbit);
-      orbitTimer = window.setTimeout(() => orbit.remove(), 520);
+
+      document.body.appendChild(trace);
+      orbitTimer = window.setTimeout(clearFilterOrbit, 560);
     };
 
     const applyHueWording = () => {
@@ -183,7 +198,7 @@ export default function EventsHueEnhancements() {
           button.addEventListener('click', () => {
             activeFilter = filter;
             applyEventFilter();
-            runFilterOrbit(button);
+            window.requestAnimationFrame(() => runFilterOrbit(button));
           });
           bar.appendChild(button);
         });
@@ -214,8 +229,8 @@ export default function EventsHueEnhancements() {
       observer.disconnect();
       document.removeEventListener('change', sync, true);
       cancelAnimationFrame(syncFrame);
-      window.clearTimeout(orbitTimer);
-      document.querySelectorAll('.event-filter-bar,.event-filter-empty,.event-filter-orbit').forEach((node) => node.remove());
+      clearFilterOrbit();
+      document.querySelectorAll('.event-filter-bar,.event-filter-empty').forEach((node) => node.remove());
       document.querySelectorAll<HTMLElement>('.family-event').forEach((event) => { event.hidden = false; });
     };
   }, []);
@@ -244,12 +259,8 @@ export default function EventsHueEnhancements() {
       color: #bfa98f;
       font-size: 11px;
       position: relative;
-      overflow: hidden;
-      isolation: isolate;
       transition: border-color .18s ease, color .18s ease, background .18s ease, box-shadow .18s ease;
     }
-    .event-filter-button > span,
-    .event-filter-button > small { position: relative; z-index: 2; }
     .event-filter-button small {
       min-width: 18px;
       height: 18px;
@@ -269,54 +280,72 @@ export default function EventsHueEnhancements() {
     }
     .event-filter-button.selected small { color: #f4d67e; background: #f6d56c14; }
 
-    .event-filter-orbit {
-      position: absolute;
-      inset: 0;
-      z-index: 3;
+    .event-filter-gold-trace {
+      position: fixed;
+      z-index: 2147483002;
       pointer-events: none;
-      border-radius: inherit;
+      box-sizing: border-box;
+      overflow: visible;
+      border: 1px solid rgba(239,190,69,.24);
+      box-shadow: 0 0 9px rgba(255,210,74,.46), inset 0 0 6px rgba(255,225,125,.13);
     }
-    .event-filter-orbit-segment {
+    .event-filter-gold-segment {
       position: absolute;
       display: block;
-      opacity: 0;
       pointer-events: none;
-      background: linear-gradient(90deg,transparent 0%,#ffd55d 22%,#fff7c7 52%,#ffd04a 76%,transparent 100%);
-      filter: drop-shadow(0 0 2px #ffe38a) drop-shadow(0 0 5px #ffc62f);
+      opacity: 0;
+      background: linear-gradient(90deg,transparent 0%,#ffd55d 18%,#fff9d2 50%,#ffd04a 80%,transparent 100%);
+      filter: drop-shadow(0 0 3px #ffe38a) drop-shadow(0 0 7px #ffc62f);
     }
-    .event-filter-orbit-segment.top {
-      top: 0; left: 6px; width: calc(100% - 12px); height: 2px;
-      transform: scaleX(0); transform-origin: left center;
-      animation: event-filter-orbit-x .11s linear 0s forwards;
+    .event-filter-gold-segment.top {
+      top: -1px;
+      left: 7px;
+      width: calc(100% - 14px);
+      height: 3px;
+      transform: scaleX(0);
+      transform-origin: left center;
+      animation: event-filter-gold-x .11s linear 0s forwards;
     }
-    .event-filter-orbit-segment.right {
-      top: 6px; right: 0; width: 2px; height: calc(100% - 12px);
-      transform: scaleY(0); transform-origin: center top;
-      animation: event-filter-orbit-y .11s linear .11s forwards;
-      background: linear-gradient(180deg,transparent 0%,#ffd55d 22%,#fff7c7 52%,#ffd04a 76%,transparent 100%);
+    .event-filter-gold-segment.right {
+      top: 7px;
+      right: -1px;
+      width: 3px;
+      height: calc(100% - 14px);
+      transform: scaleY(0);
+      transform-origin: center top;
+      animation: event-filter-gold-y .11s linear .11s forwards;
+      background: linear-gradient(180deg,transparent 0%,#ffd55d 18%,#fff9d2 50%,#ffd04a 80%,transparent 100%);
     }
-    .event-filter-orbit-segment.bottom {
-      right: 6px; bottom: 0; width: calc(100% - 12px); height: 2px;
-      transform: scaleX(0); transform-origin: right center;
-      animation: event-filter-orbit-x .11s linear .22s forwards;
+    .event-filter-gold-segment.bottom {
+      right: 7px;
+      bottom: -1px;
+      width: calc(100% - 14px);
+      height: 3px;
+      transform: scaleX(0);
+      transform-origin: right center;
+      animation: event-filter-gold-x .11s linear .22s forwards;
     }
-    .event-filter-orbit-segment.left {
-      left: 0; bottom: 6px; width: 2px; height: calc(100% - 12px);
-      transform: scaleY(0); transform-origin: center bottom;
-      animation: event-filter-orbit-y .11s linear .33s forwards;
-      background: linear-gradient(180deg,transparent 0%,#ffd55d 22%,#fff7c7 52%,#ffd04a 76%,transparent 100%);
+    .event-filter-gold-segment.left {
+      left: -1px;
+      bottom: 7px;
+      width: 3px;
+      height: calc(100% - 14px);
+      transform: scaleY(0);
+      transform-origin: center bottom;
+      animation: event-filter-gold-y .11s linear .33s forwards;
+      background: linear-gradient(180deg,transparent 0%,#ffd55d 18%,#fff9d2 50%,#ffd04a 80%,transparent 100%);
     }
-    @keyframes event-filter-orbit-x {
+    @keyframes event-filter-gold-x {
       0% { transform: scaleX(0); opacity: 0; }
-      12% { opacity: 1; }
+      10% { opacity: 1; }
       88% { opacity: 1; }
-      100% { transform: scaleX(1); opacity: .95; }
+      100% { transform: scaleX(1); opacity: 1; }
     }
-    @keyframes event-filter-orbit-y {
+    @keyframes event-filter-gold-y {
       0% { transform: scaleY(0); opacity: 0; }
-      12% { opacity: 1; }
+      10% { opacity: 1; }
       88% { opacity: 1; }
-      100% { transform: scaleY(1); opacity: .95; }
+      100% { transform: scaleY(1); opacity: 1; }
     }
 
     .event-filter-empty {
@@ -342,7 +371,7 @@ export default function EventsHueEnhancements() {
     .mode-mobile .event-filter-empty { margin: 14px; }
 
     @media (prefers-reduced-motion: reduce) {
-      .event-filter-orbit-segment {
+      .event-filter-gold-segment {
         animation-duration: .01ms !important;
         animation-delay: 0s !important;
       }
