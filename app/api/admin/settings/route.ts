@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getDatabase, writeAuditLog } from '@/db';
 import { getInternalUser, hasPermission, type SystemPermission } from '@/app/internal-auth';
 import { supportedLanguages, type Language } from '@/lib/i18n';
+import { getFamilyDataMode } from '@/lib/family-data-mode';
 import { DEFAULT_LOGIN_NOTICE, isValidLoginNotice, normalizeLoginNotice } from '@/lib/login-notice';
 
 const permissionByKey: Partial<Record<string, SystemPermission>> = { project_name: 'project_name', generations: 'generations', legends: 'legends', menu_tabs: 'menus', login_notice: 'notifications' };
@@ -10,7 +11,7 @@ const editableKeys = new Set([...Object.keys(permissionByKey), 'show_brand_banne
 const defaults: Record<string, unknown> = {
   project_name: 'GIA PHẢ HỌ PHẠM VĂN',
   show_brand_banner: true,
-  generations: ['Đời thứ 1', 'Đời thứ 2', 'Đời thứ 3', 'Đời thứ 4', 'Đời thứ 5'],
+  generations: ['Đời thứ 1', 'Đời thứ 2', 'Đời thứ 3', 'Đời thứ 4', 'Đời thứ 5', 'Đời thứ 6'],
   legends: ['Thủy tổ', 'Thành viên dòng họ'],
   menu_tabs: ['Tổng quan', 'Cây gia phả', 'Thành viên', 'Sự kiện', 'Tư liệu', 'Cài đặt'],
   login_notice: DEFAULT_LOGIN_NOTICE,
@@ -20,7 +21,10 @@ const defaults: Record<string, unknown> = {
 export async function GET() {
   const user = await getInternalUser();
   if (!user) return NextResponse.json({ message: 'Cần đăng nhập.' }, { status: 401 });
-  const rows = await getDatabase().prepare('SELECT key, value FROM app_settings').all<{ key: string; value: string }>();
+  const [rows, dataMode] = await Promise.all([
+    getDatabase().prepare('SELECT key, value FROM app_settings').all<{ key: string; value: string }>(),
+    getFamilyDataMode(),
+  ]);
   const settings = { ...defaults };
   for (const row of rows.results) { try { settings[row.key] = JSON.parse(row.value); } catch { settings[row.key] = row.value; } }
   if (['Gia phả họ Phạm', 'GIA PHẢ HỌ PHẠM', 'THE PHAM GENEALOGY: GIA PHẢ HỌ PHẠM'].includes(String(settings.project_name))) settings.project_name = defaults.project_name;
@@ -28,6 +32,10 @@ export async function GET() {
   const configuredLanguages = Array.isArray(settings.enabled_languages) ? settings.enabled_languages : [];
   const enabledLanguages = supportedLanguages.filter((language) => configuredLanguages.includes(language));
   settings.enabled_languages = enabledLanguages.length && enabledLanguages.includes('vi') ? enabledLanguages : [...supportedLanguages];
+  if (dataMode === 'sample') {
+    const configuredGenerations = Array.isArray(settings.generations) ? settings.generations.filter((value): value is string => typeof value === 'string') : [];
+    settings.generations = Array.from({ length: 6 }, (_, index) => configuredGenerations[index] ?? `Đời thứ ${index + 1}`);
+  }
   return NextResponse.json({ settings });
 }
 
