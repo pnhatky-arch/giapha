@@ -6,11 +6,12 @@ import EventsHueEnhancements from '@/components/events-hue-enhancements';
 import TombSweepingEvents from '@/components/tomb-sweeping-events';
 import MaterialsMobileTune from '@/components/materials-mobile-tune';
 import AutoDisplayResolver from '@/components/auto-display-resolver';
+import MaterialsMediaShortcut from '@/components/materials-media-shortcut';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const user = await getInternalUser();
   const canEdit = Boolean(user);
-  return <><FamilyApp user={user ? { displayName: user.displayName, username: user.username, role: user.role, permissions: user.permissions } : null} /><AutoDisplayResolver /><GenerationSelectionGlow /><BottomTabSelectionGlow /><EventsHueEnhancements /><TombSweepingEvents canEdit={canEdit} /><MaterialsMobileTune /></>;
+  return <><FamilyApp user={user ? { displayName: user.displayName, username: user.username, role: user.role, permissions: user.permissions } : null} /><AutoDisplayResolver /><GenerationSelectionGlow /><BottomTabSelectionGlow /><EventsHueEnhancements /><TombSweepingEvents canEdit={canEdit} /><MaterialsMobileTune /><MaterialsMediaShortcut /></>;
 }
