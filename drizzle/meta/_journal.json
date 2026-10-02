@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1788674445026,
+      "tag": "0000_silent_richard_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788674478463,
+      "tag": "0001_petite_guardsmen",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788674731581,
+      "tag": "0002_free_hellfire_club",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788690785306,
+      "tag": "0003_kind_rick_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788714270879,
+      "tag": "0004_tidy_reavers",
+      "breakpoints": true
+    }
+  ]
+}
