@@ -2,12 +2,20 @@
 
 import { useEffect } from 'react';
 
-type Gesture = {
+type PinchGesture = {
   viewport: HTMLElement;
   startDistance: number;
   startScale: number;
-  contentX: number;
-  contentY: number;
+  worldX: number;
+  worldY: number;
+};
+
+type PanGesture = {
+  viewport: HTMLElement;
+  startX: number;
+  startY: number;
+  startPanX: number;
+  startPanY: number;
 };
 
 const MIN_SCALE = 0.1;
@@ -23,16 +31,12 @@ function distance(a: Touch, b: Touch) {
   return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
 }
 
-function midpoint(a: Touch, b: Touch, viewport: HTMLElement) {
-  const rect = viewport.getBoundingClientRect();
-  return {
-    x: (a.clientX + b.clientX) / 2 - rect.left,
-    y: (a.clientY + b.clientY) / 2 - rect.top,
-  };
-}
-
 function clampScale(value: number) {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(value * 1000) / 1000));
+}
+
+function treeTarget(viewport: HTMLElement) {
+  return viewport.querySelector<HTMLElement>('.mobile-family-tree') ?? viewport.querySelector<HTMLElement>('.tree-scale');
 }
 
 function currentScale(viewport: HTMLElement) {
@@ -40,13 +44,50 @@ function currentScale(viewport: HTMLElement) {
   return Number.isFinite(value) && value > 0 ? value : 1;
 }
 
-function hasTree(viewport: HTMLElement) {
-  return Boolean(viewport.querySelector('.mobile-family-tree, .tree-scale'));
+function currentPan(viewport: HTMLElement) {
+  const x = Number(viewport.dataset.treePanX ?? '0');
+  const y = Number(viewport.dataset.treePanY ?? '0');
+  return {
+    x: Number.isFinite(x) ? x : 0,
+    y: Number.isFinite(y) ? y : 0,
+  };
+}
+
+function targetSize(target: HTMLElement) {
+  return {
+    width: Math.max(1, target.scrollWidth, target.offsetWidth),
+    height: Math.max(1, target.scrollHeight, target.offsetHeight),
+  };
+}
+
+function panBounds(viewport: HTMLElement, target: HTMLElement, scale: number) {
+  const size = targetSize(target);
+  const scaledWidth = size.width * scale;
+  const scaledHeight = size.height * scale;
+  const viewWidth = viewport.clientWidth;
+  const viewHeight = viewport.clientHeight;
+
+  const centeredX = (viewWidth - scaledWidth) / 2;
+  const centeredY = (viewHeight - scaledHeight) / 2;
+
+  return {
+    minX: scaledWidth <= viewWidth ? centeredX : viewWidth - scaledWidth,
+    maxX: scaledWidth <= viewWidth ? centeredX : 0,
+    minY: scaledHeight <= viewHeight ? centeredY : viewHeight - scaledHeight,
+    maxY: scaledHeight <= viewHeight ? centeredY : 0,
+    scaledWidth,
+    scaledHeight,
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 export default function TreeTouchZoom() {
   useEffect(() => {
-    let gesture: Gesture | null = null;
+    let pinch: PinchGesture | null = null;
+    let pan: PanGesture | null = null;
     let hideTimer = 0;
     let syncFrame = 0;
     let retainedScale = 1;
@@ -76,40 +117,82 @@ export default function TreeTouchZoom() {
       hideTimer = window.setTimeout(() => indicator?.classList.remove('visible'), 650);
     };
 
-    const applyScale = (viewport: HTMLElement, scaleInput: number) => {
+    const applyView = (viewport: HTMLElement, scaleInput: number, xInput: number, yInput: number) => {
+      const target = treeTarget(viewport);
+      if (!target) return null;
+
       const scale = clampScale(scaleInput);
+      const bounds = panBounds(viewport, target, scale);
+      const x = clamp(xInput, bounds.minX, bounds.maxX);
+      const y = clamp(yInput, bounds.minY, bounds.maxY);
+
       retainedScale = scale;
       viewport.dataset.treeTouchActive = 'true';
       viewport.dataset.treeTouchScale = String(scale);
+      viewport.dataset.treePanX = String(x);
+      viewport.dataset.treePanY = String(y);
       viewport.style.setProperty('--tree-touch-scale', String(scale));
+      viewport.style.setProperty('--tree-pan-x', `${x}px`);
+      viewport.style.setProperty('--tree-pan-y', `${y}px`);
       updateControls(viewport, scale);
-      return scale;
+
+      return { scale, x, y, bounds };
     };
 
-    const setScaleAroundPoint = (viewport: HTMLElement, nextScale: number, pointX: number, pointY: number) => {
-      const previous = currentScale(viewport);
-      const contentX = (viewport.scrollLeft + pointX) / previous;
-      const contentY = (viewport.scrollTop + pointY) / previous;
-      const scale = applyScale(viewport, nextScale);
+    const centerTree = (viewport: HTMLElement, scaleInput = currentScale(viewport), resetVertical = false) => {
+      const target = treeTarget(viewport);
+      if (!target) return;
+      const scale = clampScale(scaleInput);
+      const bounds = panBounds(viewport, target, scale);
+      const x = (viewport.clientWidth - bounds.scaledWidth) / 2;
+      const previous = currentPan(viewport);
+      const y = resetVertical && bounds.scaledHeight > viewport.clientHeight ? 0 : previous.y;
+      applyView(viewport, scale, x, y);
+    };
 
-      window.requestAnimationFrame(() => {
-        viewport.scrollLeft = Math.max(0, contentX * scale - pointX);
-        viewport.scrollTop = Math.max(0, contentY * scale - pointY);
-      });
-      showIndicator(viewport, scale);
+    const zoomAroundCenter = (viewport: HTMLElement, nextScale: number) => {
+      const previousScale = currentScale(viewport);
+      const previousPan = currentPan(viewport);
+      const centerX = viewport.clientWidth / 2;
+      const centerY = viewport.clientHeight / 2;
+      const worldX = (centerX - previousPan.x) / previousScale;
+      const worldY = (centerY - previousPan.y) / previousScale;
+      const scale = clampScale(nextScale);
+      const x = centerX - worldX * scale;
+      const y = centerY - worldY * scale;
+      const applied = applyView(viewport, scale, x, y);
+      if (applied) showIndicator(viewport, applied.scale);
     };
 
     const changeScale = (viewport: HTMLElement, delta: number) => {
-      setScaleAroundPoint(viewport, currentScale(viewport) + delta, viewport.clientWidth / 2, viewport.clientHeight / 2);
+      zoomAroundCenter(viewport, currentScale(viewport) + delta);
     };
 
     const resetScale = (viewport: HTMLElement) => {
-      setScaleAroundPoint(viewport, 1, viewport.clientWidth / 2, viewport.clientHeight / 2);
+      const target = treeTarget(viewport);
+      if (!target) return;
+      const scale = 1;
+      const bounds = panBounds(viewport, target, scale);
+      const x = (viewport.clientWidth - bounds.scaledWidth) / 2;
+      const y = bounds.scaledHeight <= viewport.clientHeight ? (viewport.clientHeight - bounds.scaledHeight) / 2 : 0;
+      const applied = applyView(viewport, scale, x, y);
+      if (applied) showIndicator(viewport, applied.scale);
     };
 
     const installControls = (viewport: HTMLElement) => {
-      if (!hasTree(viewport)) return;
-      applyScale(viewport, viewport.dataset.treeTouchScale ? currentScale(viewport) : retainedScale);
+      if (!treeTarget(viewport)) return;
+
+      if (!viewport.dataset.treeTouchActive) {
+        const target = treeTarget(viewport)!;
+        const scale = retainedScale;
+        const bounds = panBounds(viewport, target, scale);
+        const x = (viewport.clientWidth - bounds.scaledWidth) / 2;
+        const y = bounds.scaledHeight <= viewport.clientHeight ? (viewport.clientHeight - bounds.scaledHeight) / 2 : 0;
+        applyView(viewport, scale, x, y);
+      } else {
+        const panValue = currentPan(viewport);
+        applyView(viewport, currentScale(viewport), panValue.x, panValue.y);
+      }
 
       let controls = viewport.querySelector<HTMLElement>('.tree-touch-zoom-controls');
       if (controls) return;
@@ -170,7 +253,11 @@ export default function TreeTouchZoom() {
           viewports.forEach((viewport) => {
             viewport.removeAttribute('data-tree-touch-active');
             viewport.removeAttribute('data-tree-touch-scale');
+            viewport.removeAttribute('data-tree-pan-x');
+            viewport.removeAttribute('data-tree-pan-y');
             viewport.style.removeProperty('--tree-touch-scale');
+            viewport.style.removeProperty('--tree-pan-x');
+            viewport.style.removeProperty('--tree-pan-y');
           });
           return;
         }
@@ -179,63 +266,97 @@ export default function TreeTouchZoom() {
     };
 
     const endGesture = () => {
-      if (!gesture) return;
-      showIndicator(gesture.viewport, currentScale(gesture.viewport));
-      gesture = null;
+      if (pinch) showIndicator(pinch.viewport, currentScale(pinch.viewport));
+      pinch = null;
+      pan = null;
       document.documentElement.removeAttribute('data-tree-pinching');
     };
 
     const onTouchStart = (event: TouchEvent) => {
-      if (!isMobileTreeLayout() || event.touches.length !== 2) return;
+      if (!isMobileTreeLayout()) return;
       const source = event.target instanceof Element ? event.target : null;
       const viewport = source?.closest<HTMLElement>('.tree-viewport');
-      if (!viewport || !hasTree(viewport)) return;
+      if (!viewport || !treeTarget(viewport) || source?.closest('.tree-touch-zoom-controls')) return;
 
-      const first = event.touches[0];
-      const second = event.touches[1];
-      const scale = currentScale(viewport);
-      const point = midpoint(first, second, viewport);
+      if (event.touches.length === 2) {
+        const first = event.touches[0];
+        const second = event.touches[1];
+        const scale = currentScale(viewport);
+        const current = currentPan(viewport);
+        const centerX = viewport.clientWidth / 2;
+        const centerY = viewport.clientHeight / 2;
 
-      gesture = {
-        viewport,
-        startDistance: Math.max(1, distance(first, second)),
-        startScale: scale,
-        contentX: (viewport.scrollLeft + point.x) / scale,
-        contentY: (viewport.scrollTop + point.y) / scale,
-      };
+        pinch = {
+          viewport,
+          startDistance: Math.max(1, distance(first, second)),
+          startScale: scale,
+          worldX: (centerX - current.x) / scale,
+          worldY: (centerY - current.y) / scale,
+        };
+        pan = null;
+        document.documentElement.setAttribute('data-tree-pinching', 'true');
+        showIndicator(viewport, scale);
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
 
-      document.documentElement.setAttribute('data-tree-pinching', 'true');
-      showIndicator(viewport, scale);
-      event.preventDefault();
-      event.stopPropagation();
+      if (event.touches.length === 1) {
+        const touch = event.touches[0];
+        const current = currentPan(viewport);
+        pan = {
+          viewport,
+          startX: touch.clientX,
+          startY: touch.clientY,
+          startPanX: current.x,
+          startPanY: current.y,
+        };
+        pinch = null;
+        event.preventDefault();
+      }
     };
 
     const onTouchMove = (event: TouchEvent) => {
-      if (!gesture || event.touches.length < 2) return;
-      event.preventDefault();
-      event.stopPropagation();
+      if (pinch && event.touches.length >= 2) {
+        event.preventDefault();
+        event.stopPropagation();
+        const ratio = distance(event.touches[0], event.touches[1]) / pinch.startDistance;
+        const scale = clampScale(pinch.startScale * ratio);
+        const centerX = pinch.viewport.clientWidth / 2;
+        const centerY = pinch.viewport.clientHeight / 2;
+        const x = centerX - pinch.worldX * scale;
+        const y = centerY - pinch.worldY * scale;
+        const applied = applyView(pinch.viewport, scale, x, y);
+        if (applied) showIndicator(pinch.viewport, applied.scale);
+        return;
+      }
 
-      const first = event.touches[0];
-      const second = event.touches[1];
-      const ratio = distance(first, second) / gesture.startDistance;
-      const scale = applyScale(gesture.viewport, gesture.startScale * ratio);
-      const point = midpoint(first, second, gesture.viewport);
-
-      gesture.viewport.scrollLeft = Math.max(0, gesture.contentX * scale - point.x);
-      gesture.viewport.scrollTop = Math.max(0, gesture.contentY * scale - point.y);
-      showIndicator(gesture.viewport, scale);
+      if (pan && event.touches.length === 1) {
+        event.preventDefault();
+        const touch = event.touches[0];
+        const x = pan.startPanX + (touch.clientX - pan.startX);
+        const y = pan.startPanY + (touch.clientY - pan.startY);
+        applyView(pan.viewport, currentScale(pan.viewport), x, y);
+      }
     };
 
     const onTouchEnd = (event: TouchEvent) => {
-      if (!gesture) return;
-      event.stopPropagation();
-      if (event.touches.length < 2) endGesture();
+      if (pinch && event.touches.length < 2) {
+        endGesture();
+        return;
+      }
+      if (pan && event.touches.length === 0) pan = null;
     };
 
-    const onTouchCancel = (event: TouchEvent) => {
-      if (!gesture) return;
-      event.stopPropagation();
-      endGesture();
+    const onTouchCancel = () => endGesture();
+
+    const onResize = () => {
+      document.querySelectorAll<HTMLElement>('.tree-viewport[data-tree-touch-active]').forEach((viewport) => {
+        const current = currentPan(viewport);
+        applyView(viewport, currentScale(viewport), current.x, current.y);
+        centerTree(viewport, currentScale(viewport), false);
+      });
+      syncControls();
     };
 
     const observer = new MutationObserver(syncControls);
@@ -244,8 +365,8 @@ export default function TreeTouchZoom() {
     document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true });
     document.addEventListener('touchend', onTouchEnd, { passive: false, capture: true });
     document.addEventListener('touchcancel', onTouchCancel, { passive: false, capture: true });
-    window.addEventListener('resize', syncControls, { passive: true });
-    window.addEventListener('orientationchange', syncControls);
+    window.addEventListener('resize', onResize, { passive: true });
+    window.addEventListener('orientationchange', onResize);
     syncControls();
 
     return () => {
@@ -254,8 +375,8 @@ export default function TreeTouchZoom() {
       document.removeEventListener('touchmove', onTouchMove, true);
       document.removeEventListener('touchend', onTouchEnd, true);
       document.removeEventListener('touchcancel', onTouchCancel, true);
-      window.removeEventListener('resize', syncControls);
-      window.removeEventListener('orientationchange', syncControls);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
       window.cancelAnimationFrame(syncFrame);
       window.clearTimeout(hideTimer);
       document.documentElement.removeAttribute('data-tree-pinching');
@@ -263,20 +384,30 @@ export default function TreeTouchZoom() {
       document.querySelectorAll<HTMLElement>('.tree-viewport[data-tree-touch-active]').forEach((viewport) => {
         viewport.removeAttribute('data-tree-touch-active');
         viewport.removeAttribute('data-tree-touch-scale');
+        viewport.removeAttribute('data-tree-pan-x');
+        viewport.removeAttribute('data-tree-pan-y');
         viewport.style.removeProperty('--tree-touch-scale');
+        viewport.style.removeProperty('--tree-pan-x');
+        viewport.style.removeProperty('--tree-pan-y');
       });
     };
   }, []);
 
   return <style>{`
     @media (max-width: 740px) {
-      .tree-viewport {
-        touch-action: pan-x pan-y !important;
-        overscroll-behavior: contain;
+      .tree-viewport[data-tree-touch-active='true'] {
+        position: relative !important;
+        overflow: hidden !important;
+        touch-action: none !important;
+        overscroll-behavior: none !important;
       }
       .tree-viewport[data-tree-touch-active='true'] > .tree-scale,
       .tree-viewport[data-tree-touch-active='true'] > .mobile-family-tree {
-        transform: scale(var(--tree-touch-scale, 1)) !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        margin: 0 !important;
+        transform: translate3d(var(--tree-pan-x, 0px), var(--tree-pan-y, 0px), 0) scale(var(--tree-touch-scale, 1)) !important;
         transform-origin: top left !important;
         transition: none !important;
         will-change: transform !important;
@@ -333,13 +464,12 @@ export default function TreeTouchZoom() {
         background: #8e1b12;
       }
       .tree-touch-zoom-indicator {
-        position: sticky;
+        position: absolute;
         z-index: 30;
         top: 10px;
-        left: calc(100% - 70px);
+        right: 10px;
         width: 58px;
         height: 30px;
-        margin: 0 10px -30px auto;
         display: grid;
         place-items: center;
         border: 1px solid #d6a63f;
