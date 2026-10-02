@@ -14,12 +14,13 @@ export type FamilyPerson = {
 
 export type FamilyDataMode = 'sample' | 'official' | 'empty';
 
-export const SAMPLE_MEMBER_COUNT = 68;
+export const SAMPLE_MEMBER_COUNT = 168;
+export const SAMPLE_GENERATION_COUNTS = [1, 3, 9, 27, 64, 64] as const;
 
 const secondGeneration = [
-  { name: 'Phạm Văn Bình', birthDate: '1956-02-12' },
-  { name: 'Phạm Văn Cường', birthDate: '1959-06-18' },
-  { name: 'Phạm Văn Dũng', birthDate: '1962-10-24' },
+  { name: 'Phạm Văn Bình', birthDate: '1938-02-12' },
+  { name: 'Phạm Văn Cường', birthDate: '1942-06-18' },
+  { name: 'Phạm Văn Dũng', birthDate: '1946-10-24' },
 ];
 
 const thirdGeneration = [
@@ -40,38 +41,96 @@ const fourthGeneration = [
   'Phạm Gia Việt', 'Phạm Gia Vinh', 'Phạm Gia Yến',
 ];
 
-const fifthGeneration = [
-  'Phạm Quang An', 'Phạm Quang Bách', 'Phạm Quang Chi', 'Phạm Quang Duy',
-  'Phạm Quang Giang', 'Phạm Quang Hoa', 'Phạm Quang Khôi', 'Phạm Quang Linh',
-  'Phạm Quang Mai', 'Phạm Quang Minh', 'Phạm Quang Ngân', 'Phạm Quang Phúc',
-  'Phạm Quang Quý', 'Phạm Quang Sang', 'Phạm Quang Tâm', 'Phạm Quang Thư',
-  'Phạm Quang Trí', 'Phạm Quang Uyên', 'Phạm Quang Vân', 'Phạm Quang Yên',
-  'Phạm Thanh An', 'Phạm Thanh Bình', 'Phạm Thanh Châu', 'Phạm Thanh Đăng',
-  'Phạm Thanh Giang', 'Phạm Thanh Hân', 'Phạm Thanh Khuê', 'Phạm Thanh Lam',
+const givenNames = [
+  'An', 'Bách', 'Bảo', 'Châu', 'Đăng', 'Đạt', 'Đức', 'Duy',
+  'Giang', 'Hải', 'Hân', 'Hiếu', 'Hoàng', 'Huy', 'Khang', 'Khánh',
+  'Khoa', 'Khôi', 'Lâm', 'Linh', 'Long', 'Minh', 'Nam', 'Nghĩa',
+  'Phong', 'Phúc', 'Quân', 'Sơn', 'Thắng', 'Thành', 'Trí', 'Việt',
 ];
+
+const fifthGeneration = ['Quang', 'Thanh'].flatMap((middle) => givenNames.map((given) => `Phạm ${middle} ${given}`));
+const sixthGeneration = ['Hữu', 'Ngọc'].flatMap((middle) => givenNames.map((given) => `Phạm ${middle} ${given}`));
+
+function pad(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function sampleDate(year: number, index: number, salt = 0) {
+  const month = ((index * 5 + salt) % 12) + 1;
+  const day = ((index * 7 + salt * 3) % 27) + 1;
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+function lifeDates(generation: number, index: number): Pick<FamilyPerson, 'birthDate' | 'deathDate' | 'memorialDate'> {
+  const birthBase = [1920, 1938, 1956, 1976, 1996, 2019][generation - 1] ?? 2000;
+  const birthSpan = [1, 9, 11, 10, 8, 6][generation - 1] ?? 8;
+  const birthYear = birthBase + (index % birthSpan);
+  const birthDate = sampleDate(birthYear, index, generation);
+  const deceased = generation === 1
+    || generation === 2
+    || (generation === 3 && index % 3 === 0)
+    || (generation === 4 && index % 7 === 0)
+    || (generation === 5 && index === 7);
+  if (!deceased) return { birthDate };
+  const deathAge = [68, 74, 61, 43, 24, 0][generation - 1] ?? 60;
+  const deathYear = Math.min(2025, birthYear + deathAge + (index % 4));
+  const deathDate = sampleDate(deathYear, index, generation + 3);
+  return { birthDate, deathDate, memorialDate: deathDate };
+}
+
+function roleFor(generation: number, index: number) {
+  if (generation === 3 && index % 3 === 0) return `Trưởng nhánh ${Math.floor(index / 3) + 1}`;
+  if (generation === 4 && index % 9 === 0) return 'Đại diện nhánh';
+  if (generation === 5 && index % 16 === 0) return 'Hậu duệ tiêu biểu';
+  if (generation === 6 && index % 16 === 0) return 'Thành viên trẻ';
+  return undefined;
+}
 
 function createSampleFamily(): FamilyPerson {
   let nextId = 1;
   let fourthIndex = 0;
   let fifthIndex = 0;
+  let sixthIndex = 0;
 
-  const makeFifthGeneration = (parentName: string, extraChild = false) => Array.from({ length: extraChild ? 2 : 1 }, (_, index) => ({
-    id: nextId++,
-    name: fifthGeneration[fifthIndex++],
-    generation: 5,
-    relationship: `Con của ${parentName}`,
-    birthDate: `201${(fifthIndex + index) % 10}-0${(fifthIndex % 8) + 1}-15`,
-  }));
+  const makeSixthGeneration = (parentName: string): FamilyPerson[] => {
+    const index = sixthIndex++;
+    const name = sixthGeneration[index];
+    return [{
+      id: nextId++,
+      name,
+      generation: 6,
+      role: roleFor(6, index),
+      relationship: `Con của ${parentName}`,
+      ...lifeDates(6, index),
+    }];
+  };
 
-  const makeFourthGeneration = (parentName: string) => Array.from({ length: 3 }, () => {
-    const name = fourthGeneration[fourthIndex++];
+  const makeFifthGeneration = (parentName: string, count: number): FamilyPerson[] => Array.from({ length: count }, () => {
+    const index = fifthIndex++;
+    const name = fifthGeneration[index];
+    return {
+      id: nextId++,
+      name,
+      generation: 5,
+      role: roleFor(5, index),
+      relationship: `Con của ${parentName}`,
+      ...lifeDates(5, index),
+      children: makeSixthGeneration(name),
+    };
+  });
+
+  const makeFourthGeneration = (parentName: string): FamilyPerson[] => Array.from({ length: 3 }, () => {
+    const index = fourthIndex++;
+    const name = fourthGeneration[index];
+    const fifthCount = 2 + (index < 10 ? 1 : 0);
     return {
       id: nextId++,
       name,
       generation: 4,
+      role: roleFor(4, index),
       relationship: `Con của ${parentName}`,
-      birthDate: `198${fourthIndex % 10}-0${(fourthIndex % 8) + 1}-12`,
-      children: makeFifthGeneration(name, fourthIndex === 1),
+      ...lifeDates(4, index),
+      children: makeFifthGeneration(name, fifthCount),
     };
   });
 
@@ -81,29 +140,34 @@ function createSampleFamily(): FamilyPerson {
     generation: 1,
     role: 'Thủy tổ',
     relationship: 'Thủy tổ dòng họ',
-    birthDate: '1930-01-01',
+    ...lifeDates(1, 0),
     children: secondGeneration.map((second, secondIndex) => ({
       id: nextId++,
       name: second.name,
       generation: 2,
       role: `Trưởng chi ${secondIndex + 1}`,
       relationship: 'Con của Phạm Văn An',
+      ...lifeDates(2, secondIndex),
       birthDate: second.birthDate,
-      children: thirdGeneration[secondIndex].map((name, thirdIndex) => ({
-        id: nextId++,
-        name,
-        generation: 3,
-        relationship: `Con của ${second.name}`,
-        birthDate: `197${(secondIndex * 3 + thirdIndex) % 10}-0${thirdIndex + 2}-08`,
-        children: makeFourthGeneration(name),
-      })),
+      children: thirdGeneration[secondIndex].map((name, thirdIndex) => {
+        const index = secondIndex * 3 + thirdIndex;
+        return {
+          id: nextId++,
+          name,
+          generation: 3,
+          role: roleFor(3, index),
+          relationship: `Con của ${second.name}`,
+          ...lifeDates(3, index),
+          children: makeFourthGeneration(name),
+        };
+      }),
     })),
   };
 
   return root;
 }
 
-// Bộ dữ liệu được chia theo 5 đời: 1 + 3 + 9 + 27 + 28 = 68 thành viên.
+// Bộ dữ liệu thử nghiệm: 1 + 3 + 9 + 27 + 64 + 64 = 168 thành viên / 6 đời.
 export const initialFamily: FamilyPerson = createSampleFamily();
 
 // Khung rỗng được tạo sau khi quản trị cấp cao xác nhận bắt đầu dữ liệu chính thức.
