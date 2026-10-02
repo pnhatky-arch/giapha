@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 
 const TRACE_DURATION = 490;
+const SWIPE_THRESHOLD = 32;
 
 function isMobileLayout() {
   return window.matchMedia('(max-width: 740px)').matches || Boolean(document.querySelector('.app-shell.mode-mobile'));
@@ -18,6 +19,9 @@ export default function GenerationSelectionGlow() {
   useEffect(() => {
     let removeTimer = 0;
     let syncFrame = 0;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchTracking = false;
 
     const clearTrace = () => {
       window.clearTimeout(removeTimer);
@@ -124,7 +128,9 @@ export default function GenerationSelectionGlow() {
     const syncIntegratedUi = () => {
       cancelAnimationFrame(syncFrame);
       syncFrame = requestAnimationFrame(() => {
+        const shell = document.querySelector<HTMLElement>('.app-shell');
         if (!isMobileLayout()) {
+          shell?.classList.remove('mobile-chrome-hidden');
           removeInjectedControls();
           return;
         }
@@ -146,17 +152,50 @@ export default function GenerationSelectionGlow() {
       drawTrace(button);
     };
 
+    const shouldIgnoreSwipe = (target: EventTarget | null) => {
+      return target instanceof Element && Boolean(target.closest('input,select,textarea,button,[role="dialog"],[data-slot="dialog-content"],.generation-gold-trace'));
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      if (!isMobileLayout() || !event.touches.length || shouldIgnoreSwipe(event.target)) {
+        touchTracking = false;
+        return;
+      }
+      const touch = event.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      touchTracking = true;
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      if (!touchTracking || !event.changedTouches.length) return;
+      touchTracking = false;
+      const touch = event.changedTouches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      if (Math.abs(dy) < SWIPE_THRESHOLD || Math.abs(dy) < Math.abs(dx) * 1.15) return;
+
+      const shell = document.querySelector<HTMLElement>('.app-shell');
+      if (!shell) return;
+      shell.classList.toggle('mobile-chrome-hidden', dy < 0);
+    };
+
     const observer = new MutationObserver(syncIntegratedUi);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     document.addEventListener('click', handleClick);
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true });
     window.addEventListener('resize', syncIntegratedUi, { passive: true });
     syncIntegratedUi();
 
     return () => {
       observer.disconnect();
       document.removeEventListener('click', handleClick);
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('resize', syncIntegratedUi);
       cancelAnimationFrame(syncFrame);
+      document.querySelector('.app-shell')?.classList.remove('mobile-chrome-hidden');
       removeInjectedControls();
       clearTrace();
     };
@@ -180,16 +219,43 @@ export default function GenerationSelectionGlow() {
       .filter-panel,
       .backdrop { display: none !important; }
 
+      .topbar {
+        transition: margin-top .22s ease, opacity .18s ease !important;
+      }
+      .tabs {
+        transition: bottom .22s ease !important;
+      }
+      .workspace {
+        transition: height .22s ease !important;
+      }
+      .app-shell.mobile-chrome-hidden .topbar {
+        margin-top: -68px !important;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .app-shell.mobile-chrome-hidden .tabs {
+        bottom: -70px !important;
+        pointer-events: none;
+      }
+      .app-shell.mobile-chrome-hidden .workspace {
+        height: 100vh !important;
+      }
+
       .content-heading {
+        display: grid !important;
+        grid-template-columns: minmax(0,1fr) auto auto;
+        align-items: center;
         gap: 8px;
         padding-left: 14px !important;
         padding-right: 10px !important;
       }
-      .content-heading > div:first-child { min-width: 0; flex: 1 1 auto; }
+      .content-heading > div:first-child { min-width: 0; }
       .content-heading h2 { white-space: nowrap; }
       .mobile-generation-control {
         display: block;
-        flex: 0 0 auto;
+        width: 154px;
+        max-width: 40vw;
+        min-width: 138px;
         position: relative;
         border: 1px solid #d4a23c;
         border-radius: 9px;
@@ -197,19 +263,36 @@ export default function GenerationSelectionGlow() {
         box-shadow: inset 0 0 0 1px #f5d66a18;
         overflow: hidden;
       }
+      .mobile-generation-control::after {
+        content: '⌄';
+        position: absolute;
+        top: 50%;
+        right: 9px;
+        transform: translateY(-54%);
+        color: #d8ad4f;
+        font-size: 14px;
+        line-height: 1;
+        pointer-events: none;
+      }
       .mobile-generation-select {
-        width: 118px;
-        height: 36px;
-        padding: 0 28px 0 10px;
+        width: 100%;
+        height: 38px;
+        padding: 0 30px 0 11px;
         border: 0;
         outline: 0;
-        appearance: auto;
+        appearance: none;
+        -webkit-appearance: none;
         background: transparent;
         color: #f6d779;
         font-size: 11px;
         font-weight: 650;
+        white-space: nowrap;
       }
-      .content-heading .view-chip { flex: 0 0 auto; }
+      .content-heading .view-chip {
+        flex: 0 0 auto;
+        padding-left: 9px !important;
+        padding-right: 9px !important;
+      }
 
       .mobile-member-search {
         display: grid;
@@ -242,16 +325,42 @@ export default function GenerationSelectionGlow() {
     .mode-mobile .mobile-menu,
     .mode-mobile .filter-panel,
     .mode-mobile .backdrop { display: none !important; }
+    .mode-mobile .topbar {
+      transition: margin-top .22s ease, opacity .18s ease !important;
+    }
+    .mode-mobile .tabs {
+      transition: bottom .22s ease !important;
+    }
+    .mode-mobile .workspace {
+      transition: height .22s ease !important;
+    }
+    .mode-mobile.mobile-chrome-hidden .topbar {
+      margin-top: -68px !important;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .mode-mobile.mobile-chrome-hidden .tabs {
+      bottom: -70px !important;
+      pointer-events: none;
+    }
+    .mode-mobile.mobile-chrome-hidden .workspace {
+      height: 100vh !important;
+    }
     .mode-mobile .content-heading {
+      display: grid !important;
+      grid-template-columns: minmax(0,1fr) auto auto;
+      align-items: center;
       gap: 8px;
       padding-left: 14px !important;
       padding-right: 10px !important;
     }
-    .mode-mobile .content-heading > div:first-child { min-width: 0; flex: 1 1 auto; }
+    .mode-mobile .content-heading > div:first-child { min-width: 0; }
     .mode-mobile .content-heading h2 { white-space: nowrap; }
     .mode-mobile .mobile-generation-control {
       display: block;
-      flex: 0 0 auto;
+      width: 154px;
+      max-width: 40vw;
+      min-width: 138px;
       position: relative;
       border: 1px solid #d4a23c;
       border-radius: 9px;
@@ -259,19 +368,35 @@ export default function GenerationSelectionGlow() {
       box-shadow: inset 0 0 0 1px #f5d66a18;
       overflow: hidden;
     }
+    .mode-mobile .mobile-generation-control::after {
+      content: '⌄';
+      position: absolute;
+      top: 50%;
+      right: 9px;
+      transform: translateY(-54%);
+      color: #d8ad4f;
+      font-size: 14px;
+      line-height: 1;
+      pointer-events: none;
+    }
     .mode-mobile .mobile-generation-select {
-      width: 118px;
-      height: 36px;
-      padding: 0 28px 0 10px;
+      width: 100%;
+      height: 38px;
+      padding: 0 30px 0 11px;
       border: 0;
       outline: 0;
-      appearance: auto;
+      appearance: none;
+      -webkit-appearance: none;
       background: transparent;
       color: #f6d779;
       font-size: 11px;
       font-weight: 650;
+      white-space: nowrap;
     }
-    .mode-mobile .content-heading .view-chip { flex: 0 0 auto; }
+    .mode-mobile .content-heading .view-chip {
+      padding-left: 9px !important;
+      padding-right: 9px !important;
+    }
     .mode-mobile .mobile-member-search {
       display: grid;
       grid-template-columns: auto minmax(0,1fr) auto;
@@ -292,6 +417,29 @@ export default function GenerationSelectionGlow() {
     }
     .mode-mobile .mobile-member-search input::placeholder { color: #b89a78; }
     .mode-mobile .mobile-member-search-count { color: #a88b71; font-size: 9px; white-space: nowrap; }
+
+    @media (max-width: 390px) {
+      .mobile-generation-control,
+      .mode-mobile .mobile-generation-control {
+        width: 138px;
+        min-width: 132px;
+      }
+      .mobile-generation-select,
+      .mode-mobile .mobile-generation-select {
+        padding-left: 9px;
+        padding-right: 26px;
+        font-size: 10.5px;
+      }
+      .content-heading h2,
+      .mode-mobile .content-heading h2 {
+        font-size: 18px !important;
+      }
+      .content-heading .view-chip,
+      .mode-mobile .content-heading .view-chip {
+        padding-left: 7px !important;
+        padding-right: 7px !important;
+      }
+    }
 
     .generation-gold-trace {
       position: fixed;
@@ -349,6 +497,7 @@ export default function GenerationSelectionGlow() {
         animation-duration: .01ms !important;
         animation-delay: 0s !important;
       }
+      .topbar,.tabs,.workspace { transition: none !important; }
     }
   `}</style>;
 }
