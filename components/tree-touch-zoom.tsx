@@ -24,6 +24,7 @@ type Gesture = {
 
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 2.5;
+const STEP = 0.1;
 
 function isMobileTreeLayout() {
   const shell = document.querySelector<HTMLElement>('.app-shell');
@@ -56,6 +57,7 @@ export default function TreeTouchZoom() {
   useEffect(() => {
     let gesture: Gesture | null = null;
     let hideTimer = 0;
+    let syncFrame = 0;
     const savedStyles = new Map<HTMLElement, SavedStyle>();
     const supportsCssZoom = typeof CSS !== 'undefined' && CSS.supports?.('zoom', '1');
 
@@ -73,6 +75,16 @@ export default function TreeTouchZoom() {
       });
     };
 
+    const currentScale = (target: HTMLElement) => {
+      const value = Number(target.dataset.treeTouchScale ?? '1');
+      return Number.isFinite(value) && value > 0 ? value : 1;
+    };
+
+    const updateControls = (viewport: HTMLElement, scale: number) => {
+      const output = viewport.querySelector<HTMLOutputElement>('.tree-touch-zoom-value');
+      if (output) output.textContent = `${Math.round(scale * 100)}%`;
+    };
+
     const indicatorFor = (viewport: HTMLElement) => {
       let indicator = viewport.querySelector<HTMLOutputElement>('.tree-touch-zoom-indicator');
       if (!indicator) {
@@ -85,16 +97,12 @@ export default function TreeTouchZoom() {
     };
 
     const showIndicator = (viewport: HTMLElement, scale: number) => {
+      updateControls(viewport, scale);
       const indicator = indicatorFor(viewport);
       indicator.textContent = `${Math.round(scale * 100)}%`;
       indicator.classList.add('visible');
       window.clearTimeout(hideTimer);
       hideTimer = window.setTimeout(() => indicator?.classList.remove('visible'), 650);
-    };
-
-    const currentScale = (target: HTMLElement) => {
-      const value = Number(target.dataset.treeTouchScale ?? '1');
-      return Number.isFinite(value) && value > 0 ? value : 1;
     };
 
     const applyScale = (target: HTMLElement, scale: number) => {
@@ -107,6 +115,99 @@ export default function TreeTouchZoom() {
         target.style.setProperty('transform-origin', 'top left', 'important');
         target.style.setProperty('transform', `scale(${scale})`, 'important');
       }
+    };
+
+    const setScaleAroundPoint = (viewport: HTMLElement, target: HTMLElement, nextScale: number, pointX: number, pointY: number) => {
+      const previous = currentScale(target);
+      const contentX = (viewport.scrollLeft + pointX) / previous;
+      const contentY = (viewport.scrollTop + pointY) / previous;
+      const scale = clampScale(nextScale);
+      applyScale(target, scale);
+      viewport.scrollLeft = Math.max(0, contentX * scale - pointX);
+      viewport.scrollTop = Math.max(0, contentY * scale - pointY);
+      showIndicator(viewport, scale);
+    };
+
+    const changeScale = (viewport: HTMLElement, delta: number) => {
+      const target = zoomTarget(viewport);
+      if (!target) return;
+      const next = currentScale(target) + delta;
+      setScaleAroundPoint(viewport, target, next, viewport.clientWidth / 2, viewport.clientHeight / 2);
+    };
+
+    const resetScale = (viewport: HTMLElement) => {
+      const target = zoomTarget(viewport);
+      if (!target) return;
+      setScaleAroundPoint(viewport, target, 1, viewport.clientWidth / 2, viewport.clientHeight / 2);
+    };
+
+    const installControls = (viewport: HTMLElement) => {
+      let controls = viewport.querySelector<HTMLElement>('.tree-touch-zoom-controls');
+      if (controls) {
+        const target = zoomTarget(viewport);
+        if (target) updateControls(viewport, currentScale(target));
+        return;
+      }
+
+      controls = document.createElement('div');
+      controls.className = 'tree-touch-zoom-controls';
+      controls.setAttribute('role', 'group');
+      controls.setAttribute('aria-label', 'Điều chỉnh thu phóng cây gia phả');
+
+      const minus = document.createElement('button');
+      minus.type = 'button';
+      minus.className = 'tree-touch-zoom-minus';
+      minus.setAttribute('aria-label', 'Thu nhỏ cây gia phả');
+      minus.textContent = '−';
+      minus.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        changeScale(viewport, -STEP);
+      });
+
+      const value = document.createElement('output');
+      value.className = 'tree-touch-zoom-value';
+      value.textContent = '100%';
+      value.setAttribute('aria-live', 'polite');
+
+      const plus = document.createElement('button');
+      plus.type = 'button';
+      plus.className = 'tree-touch-zoom-plus';
+      plus.setAttribute('aria-label', 'Phóng to cây gia phả');
+      plus.textContent = '+';
+      plus.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        changeScale(viewport, STEP);
+      });
+
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'tree-touch-zoom-reset';
+      reset.setAttribute('aria-label', 'Đưa cây gia phả về 100 phần trăm');
+      reset.textContent = '↺';
+      reset.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        resetScale(viewport);
+      });
+
+      controls.append(minus, value, plus, reset);
+      viewport.appendChild(controls);
+      const target = zoomTarget(viewport);
+      if (target) updateControls(viewport, currentScale(target));
+    };
+
+    const syncControls = () => {
+      window.cancelAnimationFrame(syncFrame);
+      syncFrame = window.requestAnimationFrame(() => {
+        const viewports = [...document.querySelectorAll<HTMLElement>('.tree-viewport')];
+        if (!isMobileTreeLayout()) {
+          document.querySelectorAll('.tree-touch-zoom-controls').forEach((node) => node.remove());
+          return;
+        }
+        viewports.forEach((viewport) => installControls(viewport));
+      });
     };
 
     const endGesture = () => {
@@ -174,19 +275,28 @@ export default function TreeTouchZoom() {
       endGesture();
     };
 
+    const observer = new MutationObserver(syncControls);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'data-mobile-family-branches'] });
     document.addEventListener('touchstart', onTouchStart, { passive: false, capture: true });
     document.addEventListener('touchmove', onTouchMove, { passive: false, capture: true });
     document.addEventListener('touchend', onTouchEnd, { passive: false, capture: true });
     document.addEventListener('touchcancel', onTouchCancel, { passive: false, capture: true });
+    window.addEventListener('resize', syncControls, { passive: true });
+    window.addEventListener('orientationchange', syncControls);
+    syncControls();
 
     return () => {
+      observer.disconnect();
       document.removeEventListener('touchstart', onTouchStart, true);
       document.removeEventListener('touchmove', onTouchMove, true);
       document.removeEventListener('touchend', onTouchEnd, true);
       document.removeEventListener('touchcancel', onTouchCancel, true);
+      window.removeEventListener('resize', syncControls);
+      window.removeEventListener('orientationchange', syncControls);
+      window.cancelAnimationFrame(syncFrame);
       window.clearTimeout(hideTimer);
       document.documentElement.removeAttribute('data-tree-pinching');
-      document.querySelectorAll('.tree-touch-zoom-indicator').forEach((node) => node.remove());
+      document.querySelectorAll('.tree-touch-zoom-indicator,.tree-touch-zoom-controls').forEach((node) => node.remove());
 
       savedStyles.forEach((saved, target) => {
         if (!target.isConnected) return;
@@ -208,6 +318,50 @@ export default function TreeTouchZoom() {
       html[data-tree-pinching='true'],
       html[data-tree-pinching='true'] body {
         overscroll-behavior: none !important;
+      }
+      .tree-touch-zoom-controls {
+        position: fixed;
+        z-index: 38;
+        right: 16px;
+        bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+        height: 44px;
+        display: flex;
+        align-items: stretch;
+        overflow: hidden;
+        border: 1px solid #c79435;
+        border-radius: 11px;
+        background: #350604e8;
+        box-shadow: 0 7px 24px #1e010166;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+      .tree-touch-zoom-controls button,
+      .tree-touch-zoom-value {
+        width: 48px;
+        min-width: 48px;
+        height: 44px;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        border: 0;
+        border-right: 1px solid #8d611f55;
+        background: transparent;
+        color: #e4c573;
+        font-size: 19px;
+        line-height: 1;
+      }
+      .tree-touch-zoom-value {
+        width: 58px;
+        min-width: 58px;
+        font-size: 11px;
+        font-weight: 750;
+      }
+      .tree-touch-zoom-controls button:last-child {
+        border-right: 0;
+        font-size: 17px;
+      }
+      .tree-touch-zoom-controls button:active {
+        background: #8e1b12;
       }
       .tree-touch-zoom-indicator {
         position: sticky;
