@@ -10,5 +10,11 @@
       "database_id": "93bbf887-b016-41a3-97e0-34801c56f68c",
       "migrations_dir": "./drizzle"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "giapha-media"
+    }
   ]
 }
