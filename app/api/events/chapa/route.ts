@@ -39,6 +39,10 @@ function settingsKey(sampleMode: boolean) {
   return sampleMode ? SAMPLE_SETTINGS_KEY : OFFICIAL_SETTINGS_KEY;
 }
 
+function mediaPrefix(sampleMode: boolean, eventId: string) {
+  return `event_media:${sampleMode ? 'sample' : 'official'}:tomb:${eventId}:`;
+}
+
 async function readEvents(sampleMode: boolean): Promise<TombSweepingEvent[]> {
   const row = await getDatabase().prepare('SELECT value FROM app_settings WHERE key = ?')
     .bind(settingsKey(sampleMode)).first<{ value: string }>();
@@ -146,6 +150,7 @@ export async function DELETE(request: Request) {
   if (!existing) return NextResponse.json({ message: 'Không tìm thấy lịch Chạp mộ.' }, { status: 404 });
   const next = events.filter((event) => event.id !== body.id);
   await saveEvents(next, user.id, sampleMode);
-  await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Xóa Chạp mộ', entity: 'Sự kiện', details: `Đã xóa lịch Chạp mộ ngày ${existing.date} tại ${existing.location}` });
+  await getDatabase().prepare('DELETE FROM app_settings WHERE key LIKE ?').bind(`${mediaPrefix(sampleMode, body.id)}%`).run();
+  await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Xóa Chạp mộ', entity: 'Sự kiện', details: `Đã xóa lịch Chạp mộ ngày ${existing.date} tại ${existing.location} và ảnh đính kèm` });
   return NextResponse.json({ ok: true });
 }
