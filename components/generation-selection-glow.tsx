@@ -13,6 +13,20 @@ export default function GenerationSelectionGlow() {
       document.querySelectorAll('.generation-gold-trace').forEach((node) => node.remove());
     };
 
+    const closeMobileMenu = (button: HTMLButtonElement) => {
+      const panel = button.closest<HTMLElement>('.filter-panel');
+      if (!panel?.classList.contains('open')) return;
+
+      const isMobileViewport = window.matchMedia('(max-width: 740px)').matches;
+      const isForcedMobileMode = Boolean(button.closest('.mode-mobile'));
+      if (!isMobileViewport && !isForcedMobileMode) return;
+
+      window.requestAnimationFrame(() => {
+        const closeButton = panel.querySelector<HTMLButtonElement>('.close-menu');
+        closeButton?.click();
+      });
+    };
+
     const handleClick = (event: MouseEvent) => {
       if (!(event.target instanceof Element)) return;
       const button = event.target.closest<HTMLButtonElement>('.generation-list button');
@@ -39,6 +53,7 @@ export default function GenerationSelectionGlow() {
 
       document.body.appendChild(trace);
       removeTimer = window.setTimeout(clearTrace, TRACE_DURATION + 60);
+      closeMobileMenu(button);
     };
 
     document.addEventListener('click', handleClick, true);
