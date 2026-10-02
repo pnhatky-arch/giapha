@@ -11,6 +11,8 @@ type SavedStyle = {
   transformOriginPriority: string;
   transition: string;
   transitionPriority: string;
+  willChange: string;
+  willChangePriority: string;
 };
 
 type Gesture = {
@@ -59,7 +61,6 @@ export default function TreeTouchZoom() {
     let hideTimer = 0;
     let syncFrame = 0;
     const savedStyles = new Map<HTMLElement, SavedStyle>();
-    const supportsCssZoom = typeof CSS !== 'undefined' && CSS.supports?.('zoom', '1');
 
     const rememberStyle = (target: HTMLElement) => {
       if (savedStyles.has(target)) return;
@@ -72,6 +73,8 @@ export default function TreeTouchZoom() {
         transformOriginPriority: target.style.getPropertyPriority('transform-origin'),
         transition: target.style.getPropertyValue('transition'),
         transitionPriority: target.style.getPropertyPriority('transition'),
+        willChange: target.style.getPropertyValue('will-change'),
+        willChangePriority: target.style.getPropertyPriority('will-change'),
       });
     };
 
@@ -108,13 +111,15 @@ export default function TreeTouchZoom() {
     const applyScale = (target: HTMLElement, scale: number) => {
       rememberStyle(target);
       target.dataset.treeTouchScale = String(scale);
+
+      // Important: never use CSS `zoom` here. Safari reflows text and fixed-size
+      // cards under `zoom`, which makes names/details overlap. Transform scales the
+      // entire rendered tree as one surface: cards, text, avatars and connectors.
+      target.style.setProperty('zoom', '1', 'important');
       target.style.setProperty('transition', 'none', 'important');
-      if (supportsCssZoom) {
-        target.style.setProperty('zoom', String(scale), 'important');
-      } else {
-        target.style.setProperty('transform-origin', 'top left', 'important');
-        target.style.setProperty('transform', `scale(${scale})`, 'important');
-      }
+      target.style.setProperty('transform-origin', 'top left', 'important');
+      target.style.setProperty('transform', `scale(${scale})`, 'important');
+      target.style.setProperty('will-change', 'transform', 'important');
     };
 
     const setScaleAroundPoint = (viewport: HTMLElement, target: HTMLElement, nextScale: number, pointX: number, pointY: number) => {
@@ -123,8 +128,11 @@ export default function TreeTouchZoom() {
       const contentY = (viewport.scrollTop + pointY) / previous;
       const scale = clampScale(nextScale);
       applyScale(target, scale);
-      viewport.scrollLeft = Math.max(0, contentX * scale - pointX);
-      viewport.scrollTop = Math.max(0, contentY * scale - pointY);
+
+      window.requestAnimationFrame(() => {
+        viewport.scrollLeft = Math.max(0, contentX * scale - pointX);
+        viewport.scrollTop = Math.max(0, contentY * scale - pointY);
+      });
       showIndicator(viewport, scale);
     };
 
@@ -304,6 +312,7 @@ export default function TreeTouchZoom() {
         target.style.setProperty('transform', saved.transform, saved.transformPriority);
         target.style.setProperty('transform-origin', saved.transformOrigin, saved.transformOriginPriority);
         target.style.setProperty('transition', saved.transition, saved.transitionPriority);
+        target.style.setProperty('will-change', saved.willChange, saved.willChangePriority);
         delete target.dataset.treeTouchScale;
       });
     };
@@ -318,6 +327,14 @@ export default function TreeTouchZoom() {
       html[data-tree-pinching='true'],
       html[data-tree-pinching='true'] body {
         overscroll-behavior: none !important;
+      }
+      html[data-tree-pinching='true'] .tree-scale,
+      html[data-tree-pinching='true'] .mobile-family-tree,
+      .tree-scale[data-tree-touch-scale],
+      .mobile-family-tree[data-tree-touch-scale] {
+        text-rendering: geometricPrecision;
+        -webkit-font-smoothing: antialiased;
+        backface-visibility: hidden;
       }
       .tree-touch-zoom-controls {
         position: fixed;
