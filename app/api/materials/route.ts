@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getDatabase, writeAuditLog } from '@/db';
 import { getInternalUser } from '@/app/internal-auth';
+import { getFamilyDataMode } from '@/lib/family-data-mode';
 import { deleteMaterialMedia } from '@/lib/material-media';
+import { SAMPLE_FIXTURE_VERSION, sampleMaterialItems } from '@/lib/sample-fixtures';
 
 const MAX_ITEMS = 600;
 const MAX_TITLE_LENGTH = 120;
 const MAX_CONTENT_LENGTH = 12_000;
+const SAMPLE_PREFIX = 'sample-';
+const SAMPLE_MARKER_KEY = 'sample_material_fixture_version';
 const kinds = ['folder', 'note', 'link'] as const;
 type MaterialKind = typeof kinds[number];
 
@@ -48,9 +52,30 @@ function normalizePayload(payload: MaterialPayload) {
   return { value: { kind: payload.kind, title, content, parentId } } as const;
 }
 
-async function items() {
+async function ensureSampleMaterials() {
+  const db = getDatabase();
+  const marker = await db.prepare('SELECT value FROM app_settings WHERE key = ?').bind(SAMPLE_MARKER_KEY).first<{ value: string }>();
+  if (marker?.value === SAMPLE_FIXTURE_VERSION) return;
+
+  const statements = sampleMaterialItems.map((item) => db.prepare(`INSERT INTO material_items
+    (id, parent_id, kind, title, content, created_by_username, updated_by_username, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET parent_id = excluded.parent_id, kind = excluded.kind, title = excluded.title,
+      content = excluded.content, created_by_username = excluded.created_by_username,
+      updated_by_username = excluded.updated_by_username, created_at = excluded.created_at, updated_at = excluded.updated_at`)
+    .bind(item.id, item.parent_id, item.kind, item.title, item.content, item.created_by_username, item.updated_by_username, item.created_at, item.updated_at));
+
+  statements.push(db.prepare(`INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
+    .bind(SAMPLE_MARKER_KEY, SAMPLE_FIXTURE_VERSION, Date.now(), 'sample-fixture'));
+  await db.batch(statements);
+}
+
+async function items(sampleMode: boolean) {
+  if (sampleMode) await ensureSampleMaterials();
+  const scope = sampleMode ? "id LIKE 'sample-%'" : "id NOT LIKE 'sample-%'";
   const result = await getDatabase().prepare(`SELECT id, parent_id, kind, title, content, created_by_username, updated_by_username, created_at, updated_at
-    FROM material_items ORDER BY updated_at DESC, title COLLATE NOCASE ASC`).all<MaterialItem>();
+    FROM material_items WHERE ${scope} ORDER BY updated_at DESC, title COLLATE NOCASE ASC`).all<MaterialItem>();
   return result.results;
 }
 
@@ -75,7 +100,8 @@ function activityFor(kind: MaterialKind) {
 
 export async function GET() {
   try {
-    return NextResponse.json({ items: await items() });
+    const sampleMode = (await getFamilyDataMode()) === 'sample';
+    return NextResponse.json({ items: await items(sampleMode), sampleMode });
   } catch {
     return NextResponse.json({ message: 'Không thể tải tư liệu lúc này.' }, { status: 500 });
   }
@@ -88,10 +114,11 @@ export async function POST(request: Request) {
   const normalized = normalizePayload(body ?? {});
   if ('error' in normalized) return NextResponse.json({ message: normalized.error }, { status: 400 });
   const { kind, title, content, parentId } = normalized.value;
-  const allItems = await items();
+  const sampleMode = (await getFamilyDataMode()) === 'sample';
+  const allItems = await items(sampleMode);
   if (allItems.length >= MAX_ITEMS) return NextResponse.json({ message: `Kho tư liệu đã đạt giới hạn ${MAX_ITEMS} mục.` }, { status: 409 });
   if (parentId && !allItems.some((item) => item.id === parentId && item.kind === 'folder')) return NextResponse.json({ message: 'Thư mục chứa không còn tồn tại.' }, { status: 400 });
-  const id = crypto.randomUUID();
+  const id = sampleMode ? `${SAMPLE_PREFIX}user-${crypto.randomUUID()}` : crypto.randomUUID();
   const now = Date.now();
   await getDatabase().prepare(`INSERT INTO material_items
     (id, parent_id, kind, title, content, created_by_username, updated_by_username, created_at, updated_at)
@@ -109,9 +136,10 @@ export async function PATCH(request: Request) {
   const normalized = normalizePayload(body);
   if ('error' in normalized) return NextResponse.json({ message: normalized.error }, { status: 400 });
   const { kind, title, content, parentId } = normalized.value;
-  const allItems = await items();
+  const sampleMode = (await getFamilyDataMode()) === 'sample';
+  const allItems = await items(sampleMode);
   const current = allItems.find((item) => item.id === body.id);
-  if (!current) return NextResponse.json({ message: 'Không tìm thấy mục tư liệu.' }, { status: 404 });
+  if (!current) return NextResponse.json({ message: 'Không tìm thấy mục tư liệu trong bộ dữ liệu hiện tại.' }, { status: 404 });
   if (current.kind === 'folder' && kind !== 'folder' && allItems.some((item) => item.parent_id === current.id)) {
     return NextResponse.json({ message: 'Thư mục đang chứa tư liệu nên không thể đổi loại. Hãy chuyển hoặc xóa các mục bên trong trước.' }, { status: 409 });
   }
@@ -132,9 +160,10 @@ export async function DELETE(request: Request) {
   if (!user) return NextResponse.json({ message: 'Cần đăng nhập bằng tài khoản nội bộ để xóa tư liệu.' }, { status: 401 });
   const body = await request.json().catch(() => null) as { id?: unknown } | null;
   if (!body || typeof body.id !== 'string' || !body.id) return NextResponse.json({ message: 'Thiếu mục tư liệu cần xóa.' }, { status: 400 });
-  const allItems = await items();
+  const sampleMode = (await getFamilyDataMode()) === 'sample';
+  const allItems = await items(sampleMode);
   const current = allItems.find((item) => item.id === body.id);
-  if (!current) return NextResponse.json({ message: 'Không tìm thấy mục tư liệu.' }, { status: 404 });
+  if (!current) return NextResponse.json({ message: 'Không tìm thấy mục tư liệu trong bộ dữ liệu hiện tại.' }, { status: 404 });
   const ids = [...descendantIds(allItems, current.id)];
   const db = getDatabase();
   await db.batch(ids.map((id) => db.prepare('DELETE FROM material_items WHERE id = ?').bind(id)));
