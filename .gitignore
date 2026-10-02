@@ -1,2 +1,18 @@
-
 node_modules/
+
+# Local environment / secrets
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+
+# Generated build/runtime output
+.next/
+.vinext/
+.wrangler/
+dist/
+
+# OS / editor noise
+.DS_Store
+*.log
