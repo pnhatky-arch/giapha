@@ -2,10 +2,15 @@ import { NextResponse } from 'next/server';
 import { getDatabase, writeAuditLog } from '@/db';
 import { getInternalUser } from '@/app/internal-auth';
 import { getFamilyDataMode } from '@/lib/family-data-mode';
+import { sampleFamilyWorkEvents, sampleTombSweepingEvents } from '@/lib/sample-fixtures';
 
 const MAX_IMAGES_PER_EVENT = 8;
 const MAX_IMAGE_BYTES = 900_000;
 const PREFIX = 'event_media';
+const EVENT_SETTINGS = {
+  family: { official: 'family_work_events', sample: 'sample_family_work_events_v1' },
+  tomb: { official: 'tomb_sweeping_events', sample: 'sample_tomb_sweeping_events_v1' },
+} as const;
 
 type EventMediaKind = 'family' | 'tomb';
 type StoredImage = {
@@ -16,6 +21,8 @@ type StoredImage = {
   createdAt: number;
   createdBy: string;
 };
+
+type EventIdentity = { id?: unknown };
 
 function isKind(value: string | null): value is EventMediaKind {
   return value === 'family' || value === 'tomb';
@@ -82,6 +89,25 @@ async function readStored(key: string): Promise<StoredImage | null> {
   }
 }
 
+async function eventIds(kind: EventMediaKind, sampleMode: boolean) {
+  const key = EVENT_SETTINGS[kind][sampleMode ? 'sample' : 'official'];
+  const row = await getDatabase().prepare('SELECT value FROM app_settings WHERE key = ?').bind(key).first<{ value: string }>();
+  if (!row?.value) {
+    const fixtures = sampleMode ? (kind === 'family' ? sampleFamilyWorkEvents() : sampleTombSweepingEvents()) : [];
+    return new Set(fixtures.map((event) => event.id));
+  }
+  try {
+    const parsed = JSON.parse(row.value) as unknown;
+    if (!Array.isArray(parsed)) return new Set<string>();
+    return new Set(parsed.flatMap((event) => {
+      const id = event && typeof event === 'object' && !Array.isArray(event) ? (event as EventIdentity).id : undefined;
+      return typeof id === 'string' ? [id] : [];
+    }));
+  } catch {
+    return new Set<string>();
+  }
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const kind = url.searchParams.get('kind');
@@ -89,8 +115,10 @@ export async function GET(request: Request) {
   const imageId = cleanId(url.searchParams.get('imageId'));
   if (!isKind(kind)) return NextResponse.json({ message: 'Loại sự kiện không hợp lệ.' }, { status: 400 });
   const sampleMode = (await getFamilyDataMode()) === 'sample';
+  const validIds = await eventIds(kind, sampleMode);
 
   if (eventId && imageId) {
+    if (!validIds.has(eventId)) return new Response('Not found', { status: 404 });
     const stored = await readStored(mediaKey(sampleMode, kind, eventId, imageId));
     if (!stored) return new Response('Not found', { status: 404 });
     const bytes = base64ToBytes(stored.data);
@@ -113,7 +141,7 @@ export async function GET(request: Request) {
       const parts = row.key.split(':');
       const rowEventId = parts[3] ?? '';
       const rowImageId = parts[4] ?? '';
-      if (!rowEventId || !rowImageId || typeof stored.name !== 'string') return [];
+      if (!rowEventId || !rowImageId || !validIds.has(rowEventId) || typeof stored.name !== 'string') return [];
       return [{
         id: rowImageId,
         eventId: rowEventId,
@@ -142,10 +170,13 @@ export async function POST(request: Request) {
   const eventId = cleanId(String(form.get('eventId') ?? ''));
   const file = form.get('file');
   if (!kind || !eventId) return NextResponse.json({ message: 'Thiếu sự kiện cần gắn ảnh.' }, { status: 400 });
-  if (!(file instanceof File) || file.size <= 0 || !file.type.startsWith('image/')) return NextResponse.json({ message: 'Chỉ hỗ trợ tệp hình ảnh.' }, { status: 400 });
+  if (!(file instanceof File) || file.size <= 0 || !file.type.startsWith('image/') || file.type === 'image/svg+xml') return NextResponse.json({ message: 'Chỉ hỗ trợ tệp hình ảnh raster.' }, { status: 400 });
   if (file.size > MAX_IMAGE_BYTES) return NextResponse.json({ message: 'Ảnh sau khi nén vẫn quá lớn. Vui lòng chọn ảnh khác.' }, { status: 413 });
 
   const sampleMode = (await getFamilyDataMode()) === 'sample';
+  const validIds = await eventIds(kind, sampleMode);
+  if (!validIds.has(eventId)) return NextResponse.json({ message: 'Sự kiện không còn tồn tại nên không thể gắn ảnh.' }, { status: 404 });
+
   const prefix = eventPrefix(sampleMode, kind, eventId);
   const count = await getDatabase().prepare('SELECT COUNT(*) AS count FROM app_settings WHERE key LIKE ?').bind(`${prefix}%`).first<{ count: number }>();
   if (Number(count?.count ?? 0) >= MAX_IMAGES_PER_EVENT) return NextResponse.json({ message: `Mỗi sự kiện lưu tối đa ${MAX_IMAGES_PER_EVENT} ảnh.` }, { status: 409 });
@@ -164,7 +195,7 @@ export async function POST(request: Request) {
   const key = mediaKey(sampleMode, kind, eventId, imageId);
   await getDatabase().prepare(`INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
-    .bind(key, JSON.stringify(stored), now, user.username).run();
+    .bind(key, JSON.stringify(stored), now, user.id).run();
   await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Thêm ảnh sự kiện', entity: 'Sự kiện', details: `Đã thêm “${stored.name}” vào ${kind === 'tomb' ? 'Chạp mộ' : 'Việc họ'} ${eventId}` });
   return NextResponse.json({ image: { id: imageId, eventId, kind, name: stored.name, type: stored.type, size: stored.size, createdAt: now, createdBy: user.username, url: mediaUrl(kind, eventId, imageId) } });
 }
