@@ -81,7 +81,10 @@ export default function TreeMobileGenerations() {
         }
 
         const cards = [...tree.querySelectorAll<HTMLButtonElement>('.person-card')];
-        const parsed = cards.map((card) => readCard(card, ++sourceSequence)).filter((card): card is CardSnapshot => Boolean(card));
+        const parsed = cards
+          .map((card) => readCard(card, ++sourceSequence))
+          .filter((card): card is CardSnapshot => Boolean(card));
+
         if (!parsed.length) {
           clearMobileLayout();
           return;
@@ -225,9 +228,7 @@ export default function TreeMobileGenerations() {
       box-shadow: 0 5px 13px #24010035, inset 0 0 0 2px #fff8dc, inset 0 0 0 3px #c9942f;
       text-align: left;
     }
-    .mobile-generation-card:active {
-      transform: scale(.985);
-    }
+    .mobile-generation-card:active { transform: scale(.985); }
     .mobile-generation-card:first-child:last-child,
     .mobile-generation-card:last-child:nth-child(odd) {
       grid-column: 1 / -1;
@@ -286,114 +287,6 @@ export default function TreeMobileGenerations() {
       line-height: 1.15;
     }
 
-    @media (max-width: 740px) {
-      .content-heading {
-        width: auto !important;
-        height: auto !important;
-        min-height: 74px !important;
-        margin: 10px 12px 8px !important;
-        padding: 7px !important;
-        display: grid !important;
-        grid-template-columns: minmax(0, 1fr) minmax(138px, 1.08fr) !important;
-        align-items: stretch !important;
-        gap: 7px !important;
-        border: 1px solid #d4b06c99 !important;
-        border-radius: 15px !important;
-        background: linear-gradient(145deg, #fff8ea, #f1e1bd) !important;
-        box-shadow: 0 8px 22px #2b06042a !important;
-        backdrop-filter: none !important;
-      }
-      .content-heading > div:first-child {
-        min-width: 0 !important;
-        min-height: 58px !important;
-        position: relative !important;
-        padding: 9px 8px 9px 43px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-        border: 1px solid #b8422d !important;
-        border-radius: 11px !important;
-        background: linear-gradient(145deg, #98291f, #6d110d) !important;
-        box-shadow: inset 0 1px #ffd99745, 0 4px 10px #4d0a0722 !important;
-      }
-      .content-heading > div:first-child::before {
-        content: '';
-        position: absolute;
-        left: 10px;
-        top: 50%;
-        width: 25px;
-        height: 25px;
-        transform: translateY(-50%);
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f6d779' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='5' r='2.2'/%3E%3Ccircle cx='6' cy='17.5' r='2.2'/%3E%3Ccircle cx='18' cy='17.5' r='2.2'/%3E%3Cpath d='M12 7.3v4.2M6 15.3v-2.5h12v2.5'/%3E%3C/svg%3E");
-      }
-      .content-heading > div:first-child::after {
-        content: 'Xem theo thế hệ';
-        margin-top: 3px;
-        color: #f2d9b0;
-        font-family: var(--font-sans), sans-serif;
-        font-size: 9px;
-        line-height: 1.1;
-        white-space: nowrap;
-      }
-      .content-heading h2 {
-        margin: 0 !important;
-        overflow: hidden !important;
-        color: #fff0bd !important;
-        font-family: var(--font-sans), sans-serif !important;
-        font-size: 13px !important;
-        line-height: 1.05 !important;
-        font-weight: 780 !important;
-        letter-spacing: 0 !important;
-        white-space: nowrap !important;
-        text-overflow: ellipsis !important;
-      }
-      .content-heading .mobile-generation-control {
-        display: block !important;
-        width: 100% !important;
-        max-width: none !important;
-        min-width: 0 !important;
-        height: 58px !important;
-        border: 1px solid #d4b06c !important;
-        border-radius: 11px !important;
-        background: #fffaf0 !important;
-        box-shadow: inset 0 1px #ffffff !important;
-      }
-      .content-heading .mobile-generation-control::after {
-        right: 10px !important;
-        color: #7e2419 !important;
-      }
-      .content-heading .mobile-generation-select {
-        width: 100% !important;
-        height: 56px !important;
-        padding: 0 28px 0 10px !important;
-        color: #5a160f !important;
-        font-size: 11px !important;
-        font-weight: 750 !important;
-        background: transparent !important;
-      }
-      .content-heading .view-chip {
-        display: none !important;
-      }
-    }
-
-    .mode-mobile .content-heading {
-      width: auto !important;
-      height: auto !important;
-      min-height: 74px !important;
-      margin: 10px 12px 8px !important;
-      padding: 7px !important;
-      grid-template-columns: minmax(0, 1fr) minmax(138px, 1.08fr) !important;
-      align-items: stretch !important;
-      gap: 7px !important;
-      border: 1px solid #d4b06c99 !important;
-      border-radius: 15px !important;
-      background: linear-gradient(145deg, #fff8ea, #f1e1bd) !important;
-    }
-    .mode-mobile .content-heading .view-chip { display: none !important; }
-
     @media (max-width: 350px) {
       .mobile-generation-tree { padding-left: 10px; padding-right: 10px; }
       .mobile-generation-grid { grid-template-columns: 1fr; }
@@ -402,9 +295,6 @@ export default function TreeMobileGenerations() {
       .mobile-generation-card:last-child:nth-child(odd) {
         width: 100% !important;
         grid-column: auto !important;
-      }
-      .content-heading {
-        grid-template-columns: minmax(0, 1fr) 132px !important;
       }
     }
   `}</style>;
