@@ -2,134 +2,157 @@
 
 import { useEffect } from 'react';
 
-const TRACE_DURATION = 440;
-
 function isMobileLayout() {
   return window.matchMedia('(max-width: 740px)').matches || Boolean(document.querySelector('.app-shell.mode-mobile'));
 }
 
 export default function BottomTabSelectionGlow() {
   useEffect(() => {
-    let removeTimer = 0;
-
-    const clearTrace = () => {
-      window.clearTimeout(removeTimer);
-      document.querySelectorAll('.bottom-tab-gold-trace').forEach((node) => node.remove());
+    const clearLines = () => {
+      document.querySelectorAll('.bottom-tab-gold-line').forEach((node) => node.remove());
     };
 
-    const drawTrace = (icon: SVGElement) => {
-      clearTrace();
-      const rect = icon.getBoundingClientRect();
-      if (rect.width < 4 || rect.height < 4) return;
+    const installLine = (button: HTMLButtonElement, animate: boolean) => {
+      clearLines();
+      if (!isMobileLayout()) return;
 
-      const padding = 7;
-      const trace = document.createElement('div');
-      trace.className = 'bottom-tab-gold-trace';
-      trace.style.left = `${rect.left - padding}px`;
-      trace.style.top = `${rect.top - padding}px`;
-      trace.style.width = `${rect.width + padding * 2}px`;
-      trace.style.height = `${rect.height + padding * 2}px`;
-      trace.setAttribute('aria-hidden', 'true');
+      const line = document.createElement('span');
+      line.className = `bottom-tab-gold-line${animate ? ' run' : ' settled'}`;
+      line.setAttribute('aria-hidden', 'true');
+      button.appendChild(line);
+    };
 
-      for (const side of ['top', 'right', 'bottom', 'left']) {
-        const segment = document.createElement('span');
-        segment.className = `bottom-tab-gold-segment ${side}`;
-        trace.appendChild(segment);
+    const syncActiveLine = (animate = false) => {
+      if (!isMobileLayout()) {
+        clearLines();
+        return;
       }
-
-      document.body.appendChild(trace);
-      removeTimer = window.setTimeout(clearTrace, TRACE_DURATION + 80);
+      const active = document.querySelector<HTMLButtonElement>('.tabs button.active');
+      if (active) installLine(active, animate);
     };
 
     const handleClick = (event: MouseEvent) => {
       if (!isMobileLayout() || !(event.target instanceof Element)) return;
       const button = event.target.closest<HTMLButtonElement>('.tabs button');
       if (!button) return;
-      const icon = button.querySelector<SVGElement>('svg:not(.tab-lock)');
-      if (!icon) return;
-      window.requestAnimationFrame(() => drawTrace(icon));
+
+      // React applies the active class during this click. Wait one frame, then
+      // draw the indicator on the tab that actually became active.
+      window.requestAnimationFrame(() => {
+        const active = document.querySelector<HTMLButtonElement>('.tabs button.active') ?? button;
+        installLine(active, true);
+      });
     };
 
+    const handleResize = () => syncActiveLine(false);
+
     document.addEventListener('click', handleClick);
+    window.addEventListener('resize', handleResize, { passive: true });
+    window.requestAnimationFrame(() => syncActiveLine(false));
+
     return () => {
       document.removeEventListener('click', handleClick);
-      clearTrace();
+      window.removeEventListener('resize', handleResize);
+      clearLines();
     };
   }, []);
 
   return <style>{`
-    .bottom-tab-gold-trace {
-      position: fixed;
-      z-index: 2147483001;
-      pointer-events: none;
-      box-sizing: border-box;
-      overflow: visible;
-      border: 1px solid rgba(239,190,69,.18);
-      border-radius: 10px;
-      box-shadow: 0 0 7px rgba(255,210,74,.30), inset 0 0 5px rgba(255,225,125,.10);
+    .bottom-tab-gold-line { display: none; }
+
+    @media (max-width: 740px) {
+      .tabs button {
+        position: relative;
+      }
+      .tabs button::after {
+        display: none !important;
+      }
+      .bottom-tab-gold-line {
+        position: absolute;
+        z-index: 3;
+        display: block;
+        top: 4px;
+        left: 50%;
+        width: 34px;
+        height: 3px;
+        border-radius: 999px;
+        pointer-events: none;
+        background: linear-gradient(90deg,#c89222 0%,#ffe48a 46%,#f0b92f 100%);
+        box-shadow: 0 0 5px #ffd65f99,0 0 10px #ffc52f55;
+        transform: translateX(-50%) scaleX(1);
+        transform-origin: left center;
+      }
+      .bottom-tab-gold-line.run {
+        animation: bottom-tab-gold-run .34s cubic-bezier(.22,.78,.28,1) forwards;
+      }
+      .bottom-tab-gold-line.run::after {
+        content: '';
+        position: absolute;
+        top: -1px;
+        left: -7px;
+        width: 10px;
+        height: 5px;
+        border-radius: 999px;
+        background: #fff7c7;
+        box-shadow: 0 0 5px #fff0a8,0 0 9px #ffd044;
+        animation: bottom-tab-gold-runner .34s cubic-bezier(.22,.78,.28,1) forwards;
+      }
+      .bottom-tab-gold-line.settled::after {
+        display: none;
+      }
     }
-    .bottom-tab-gold-segment {
+
+    .mode-mobile .tabs button {
+      position: relative;
+    }
+    .mode-mobile .tabs button::after {
+      display: none !important;
+    }
+    .mode-mobile .bottom-tab-gold-line {
       position: absolute;
+      z-index: 3;
       display: block;
+      top: 4px;
+      left: 50%;
+      width: 34px;
+      height: 3px;
+      border-radius: 999px;
       pointer-events: none;
-      opacity: 0;
-      background: linear-gradient(90deg, transparent 0%, #ffd55d 22%, #fff7c7 52%, #ffd04a 76%, transparent 100%);
-      filter: drop-shadow(0 0 3px #ffe38a) drop-shadow(0 0 6px #ffc62f);
-    }
-    .bottom-tab-gold-segment.top {
-      top: -1px;
-      left: 6px;
-      height: 3px;
-      width: calc(100% - 12px);
-      transform: scaleX(0);
+      background: linear-gradient(90deg,#c89222 0%,#ffe48a 46%,#f0b92f 100%);
+      box-shadow: 0 0 5px #ffd65f99,0 0 10px #ffc52f55;
+      transform: translateX(-50%) scaleX(1);
       transform-origin: left center;
-      animation: bottom-tab-trace-x .10s linear 0s forwards;
     }
-    .bottom-tab-gold-segment.right {
-      top: 6px;
-      right: -1px;
-      width: 3px;
-      height: calc(100% - 12px);
-      transform: scaleY(0);
-      transform-origin: center top;
-      animation: bottom-tab-trace-y .10s linear .10s forwards;
-      background: linear-gradient(180deg, transparent 0%, #ffd55d 22%, #fff7c7 52%, #ffd04a 76%, transparent 100%);
+    .mode-mobile .bottom-tab-gold-line.run {
+      animation: bottom-tab-gold-run .34s cubic-bezier(.22,.78,.28,1) forwards;
     }
-    .bottom-tab-gold-segment.bottom {
-      right: 6px;
-      bottom: -1px;
-      height: 3px;
-      width: calc(100% - 12px);
-      transform: scaleX(0);
-      transform-origin: right center;
-      animation: bottom-tab-trace-x .10s linear .20s forwards;
+    .mode-mobile .bottom-tab-gold-line.run::after {
+      content: '';
+      position: absolute;
+      top: -1px;
+      left: -7px;
+      width: 10px;
+      height: 5px;
+      border-radius: 999px;
+      background: #fff7c7;
+      box-shadow: 0 0 5px #fff0a8,0 0 9px #ffd044;
+      animation: bottom-tab-gold-runner .34s cubic-bezier(.22,.78,.28,1) forwards;
     }
-    .bottom-tab-gold-segment.left {
-      left: -1px;
-      bottom: 6px;
-      width: 3px;
-      height: calc(100% - 12px);
-      transform: scaleY(0);
-      transform-origin: center bottom;
-      animation: bottom-tab-trace-y .10s linear .30s forwards;
-      background: linear-gradient(180deg, transparent 0%, #ffd55d 22%, #fff7c7 52%, #ffd04a 76%, transparent 100%);
+
+    @keyframes bottom-tab-gold-run {
+      0% { transform: translateX(-50%) scaleX(0); opacity: .45; }
+      100% { transform: translateX(-50%) scaleX(1); opacity: 1; }
     }
-    @keyframes bottom-tab-trace-x {
-      0% { transform: scaleX(0); opacity: 0; }
-      12% { opacity: 1; }
+    @keyframes bottom-tab-gold-runner {
+      0% { transform: translateX(0); opacity: 1; }
       88% { opacity: 1; }
-      100% { transform: scaleX(1); opacity: .95; }
+      100% { transform: translateX(38px); opacity: 0; }
     }
-    @keyframes bottom-tab-trace-y {
-      0% { transform: scaleY(0); opacity: 0; }
-      12% { opacity: 1; }
-      88% { opacity: 1; }
-      100% { transform: scaleY(1); opacity: .95; }
-    }
+
     @media (prefers-reduced-motion: reduce) {
-      .bottom-tab-gold-segment {
-        animation-duration: .01ms !important;
-        animation-delay: 0s !important;
+      .bottom-tab-gold-line.run,
+      .bottom-tab-gold-line.run::after {
+        animation: none !important;
       }
     }
   `}</style>;
