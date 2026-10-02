@@ -7,23 +7,24 @@ export default function MaterialsMobileTune() {
       display: none !important;
     }
 
-    /* Keep all three creation actions on one row, including narrow iPhones. */
+    /* Keep all creation actions on one row, including narrow iPhones. */
     .materials-workspace .materials-toolbar > div:last-child {
       display: grid !important;
-      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-      gap: 8px !important;
-      width: min(100%, 430px);
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+      gap: 7px !important;
+      width: min(100%, 520px);
     }
     .materials-workspace .materials-toolbar > div:last-child > button {
       min-width: 0 !important;
       width: 100% !important;
-      padding: 0 8px !important;
+      padding: 0 6px !important;
       white-space: nowrap;
     }
-    .materials-workspace .materials-toolbar > div:last-child > button svg {
+    .materials-workspace .materials-toolbar > div:last-child > button svg,
+    .materials-workspace .materials-toolbar > div:last-child > button .materials-media-shortcut-icon {
       flex: 0 0 auto;
-      width: 15px !important;
-      height: 15px !important;
+      width: 14px !important;
+      height: 14px !important;
     }
 
     /* Edit/delete controls: same compact footprint and icon size. */
@@ -54,8 +55,8 @@ export default function MaterialsMobileTune() {
       }
       .materials-workspace .materials-toolbar > div:last-child > button {
         min-height: 38px !important;
-        font-size: 11px !important;
-        gap: 5px !important;
+        font-size: 10px !important;
+        gap: 4px !important;
       }
       .materials-workspace .material-entry-actions {
         flex-direction: column !important;
@@ -64,15 +65,16 @@ export default function MaterialsMobileTune() {
 
     @media (max-width: 390px) {
       .materials-workspace .materials-toolbar > div:last-child {
-        gap: 6px !important;
+        gap: 5px !important;
       }
       .materials-workspace .materials-toolbar > div:last-child > button {
-        padding: 0 5px !important;
-        font-size: 10px !important;
+        padding: 0 4px !important;
+        font-size: 9px !important;
       }
-      .materials-workspace .materials-toolbar > div:last-child > button svg {
-        width: 13px !important;
-        height: 13px !important;
+      .materials-workspace .materials-toolbar > div:last-child > button svg,
+      .materials-workspace .materials-toolbar > div:last-child > button .materials-media-shortcut-icon {
+        width: 12px !important;
+        height: 12px !important;
       }
     }
   `}</style>;
