@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "vinext dev",
-    "build": "vinext build",
+    "build": "vinext build && node scripts/patch-wrangler-media.mjs",
     "start": "wrangler dev --config dist/server/wrangler.json",
     "package:cloudflare-final": "node scripts/package-cloudflare-final.mjs",
     "setup:local-test": "CI=1 wrangler d1 migrations apply site-creator-d1 --local --config wrangler.local.jsonc",
