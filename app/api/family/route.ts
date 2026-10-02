@@ -7,6 +7,7 @@ const TREE_ID = 'primary';
 const DATA_MODE_KEY = 'family_data_mode';
 const MAX_GENERATION = 20;
 const MAX_MEMBERS = 500;
+const SAMPLE_TREE_COUNTS = new Set([16, 68, 168]);
 
 function isDataMode(value: unknown): value is FamilyDataMode {
   return value === 'sample' || value === 'official' || value === 'empty';
@@ -26,7 +27,7 @@ function isValidIsoDate(value: unknown): value is string {
 }
 
 function isLegacySampleTree(value: FamilyPerson): boolean {
-  return value.id === 1 && value.name === 'Phạm Văn An' && flattenFamily(value).length === 16;
+  return value.id === 1 && value.name === 'Phạm Văn An' && SAMPLE_TREE_COUNTS.has(flattenFamily(value).length);
 }
 
 async function getStoredDataMode(): Promise<FamilyDataMode | null> {
