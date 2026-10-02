@@ -9,5 +9,5 @@ export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const user = await getInternalUser();
-  return <><FamilyApp user={user ? { displayName: user.displayName, username: user.username, role: user.role, permissions: user.permissions } : null} /><GenerationSelectionGlow /><BottomTabSelectionGlow /><EventsHueEnhancements /><TombSweepingEvents /></>;
+  return <><FamilyApp user={user ? { displayName: user.displayName, username: user.username, role: user.role, permissions: user.permissions } : null} /><GenerationSelectionGlow /><BottomTabSelectionGlow /><EventsHueEnhancements /><TombSweepingEvents canEdit={Boolean(user)} /></>;
 }
