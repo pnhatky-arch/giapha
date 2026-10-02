@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 
-type EventFilter = 'all' | 'memorial' | 'birthday' | 'tomb' | 'family';
+type EventFilter = 'all' | 'memorial' | 'birthday' | 'tomb';
 type TextSnapshot = { source: string; target: string };
 type AttributeSnapshot = { source: string; target: string };
 
@@ -14,7 +14,7 @@ const HUE_REPLACEMENTS: Array<[string, string]> = [
   ['Bạn đang xem với vai trò khách — chỉ có quyền xem', 'Đang coi với vai trò khách — chỉ có quyền xem'],
   ['Không cần tài khoản, chỉ xem nội dung', 'Không cần tài khoản, chỉ coi nội dung'],
   ['Vui lòng chọn một người thuộc gia phả.', 'Mời chọn một người trong gia phả.'],
-  ['Chưa có sự kiện nào được cập nhật.', 'Chưa có việc họ nào được ghi.'],
+  ['Chưa có sự kiện nào được cập nhật.', 'Chưa có sự kiện nào được ghi.'],
   ['Chọn cách bạn muốn truy cập', 'Chọn cách vô gia phả'],
   ['Tôi hiểu, tiếp tục xem', 'Đã rõ, coi tiếp'],
   ['Sự kiện gia đình', 'Sự Kiện'],
@@ -133,7 +133,6 @@ export default function EventsHueEnhancements() {
       if (event.classList.contains('memorial')) return 'memorial';
       if (event.classList.contains('birthday')) return 'birthday';
       if (event.classList.contains('tomb-sweeping') || event.classList.contains('tao-mo')) return 'tomb';
-      if (event.classList.contains('family-work')) return 'family';
       return null;
     };
 
@@ -159,15 +158,13 @@ export default function EventsHueEnhancements() {
       if (empty) {
         empty.hidden = visible > 0;
         if (activeFilter === 'tomb') {
-          empty.innerHTML = '<strong>Chưa có ngày Chạp mộ được ghi</strong><span>Khi bổ sung lịch Chạp mộ, mục ni sẽ hiện ở đây.</span>';
+          empty.innerHTML = '<strong>Chưa có ngày Chạp mộ được ghi</strong><span>Nhấn “+ Chạp mộ” để bổ sung lịch.</span>';
         } else if (activeFilter === 'memorial') {
           empty.innerHTML = '<strong>Chưa có ngày kỵ trong mục ni</strong><span>Bổ sung ngày kỵ trong hồ sơ người thân để hiện lịch.</span>';
         } else if (activeFilter === 'birthday') {
           empty.innerHTML = '<strong>Chưa có sinh nhật trong mục ni</strong><span>Bổ sung ngày sinh trong hồ sơ người thân để hiện lịch.</span>';
-        } else if (activeFilter === 'family') {
-          empty.innerHTML = '<strong>Chưa có việc họ nào được ghi</strong><span>Các việc chung của dòng họ sẽ được hiển thị tại mục ni.</span>';
         } else {
-          empty.innerHTML = '<strong>Chưa có sự kiện nào được ghi</strong><span>Bổ sung ngày sinh, ngày kỵ, Chạp mộ hoặc việc họ để theo dõi.</span>';
+          empty.innerHTML = '<strong>Chưa có sự kiện nào được ghi</strong><span>Bổ sung ngày sinh, ngày kỵ hoặc lịch Chạp mộ để theo dõi.</span>';
         }
       }
     };
@@ -179,13 +176,12 @@ export default function EventsHueEnhancements() {
 
       const title = heading.querySelector<HTMLElement>('h2');
       if (title && isVietnameseUi() && title.textContent?.trim() !== 'Sự Kiện') title.textContent = 'Sự Kiện';
-      view.dataset.eventsEnhancer = '20261002-family-v2';
+      view.dataset.eventsEnhancer = '20261002-tomb-v3';
 
       const counts = {
         memorial: view.querySelectorAll('.family-event.memorial').length,
         birthday: view.querySelectorAll('.family-event.birthday').length,
         tomb: view.querySelectorAll('.family-event.tomb-sweeping,.family-event.tao-mo').length,
-        family: view.querySelectorAll('.family-event.family-work').length,
       };
 
       let bar = view.querySelector<HTMLElement>('.event-filter-bar');
@@ -198,11 +194,10 @@ export default function EventsHueEnhancements() {
       }
 
       const filters: Array<[EventFilter, string, number]> = [
-        ['all', 'Tất cả', counts.memorial + counts.birthday + counts.tomb + counts.family],
+        ['all', 'Tất cả', counts.memorial + counts.birthday + counts.tomb],
         ['birthday', 'Sinh nhật', counts.birthday],
         ['memorial', 'Ngày kỵ', counts.memorial],
         ['tomb', 'Chạp mộ', counts.tomb],
-        ['family', 'Việc họ', counts.family],
       ];
 
       filters.forEach(([filter, label, count]) => {
