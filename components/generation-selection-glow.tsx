@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 
-const TRACE_DURATION = 980;
+const TRACE_DURATION = 490;
 
 export default function GenerationSelectionGlow() {
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function GenerationSelectionGlow() {
       }
 
       document.body.appendChild(trace);
-      removeTimer = window.setTimeout(clearTrace, TRACE_DURATION + 120);
+      removeTimer = window.setTimeout(clearTrace, TRACE_DURATION + 60);
     };
 
     document.addEventListener('click', handleClick, true);
@@ -84,7 +84,7 @@ export default function GenerationSelectionGlow() {
       width: calc(100% - 16px);
       transform: scaleX(0);
       transform-origin: left center;
-      animation: generation-trace-x .22s linear 0s forwards;
+      animation: generation-trace-x .11s linear 0s forwards;
     }
     .generation-gold-segment.right {
       top: 8px;
@@ -93,7 +93,7 @@ export default function GenerationSelectionGlow() {
       height: calc(100% - 16px);
       transform: scaleY(0);
       transform-origin: center top;
-      animation: generation-trace-y .22s linear .22s forwards;
+      animation: generation-trace-y .11s linear .11s forwards;
       background: linear-gradient(180deg, transparent 0%, #ffd55d 22%, #fff7c7 52%, #ffd04a 76%, transparent 100%);
     }
     .generation-gold-segment.bottom {
@@ -103,7 +103,7 @@ export default function GenerationSelectionGlow() {
       width: calc(100% - 16px);
       transform: scaleX(0);
       transform-origin: right center;
-      animation: generation-trace-x .22s linear .44s forwards;
+      animation: generation-trace-x .11s linear .22s forwards;
     }
     .generation-gold-segment.left {
       left: -1px;
@@ -112,7 +112,7 @@ export default function GenerationSelectionGlow() {
       height: calc(100% - 16px);
       transform: scaleY(0);
       transform-origin: center bottom;
-      animation: generation-trace-y .22s linear .66s forwards;
+      animation: generation-trace-y .11s linear .33s forwards;
       background: linear-gradient(180deg, transparent 0%, #ffd55d 22%, #fff7c7 52%, #ffd04a 76%, transparent 100%);
     }
     @keyframes generation-trace-x {
