@@ -24,7 +24,7 @@ type Gesture = {
   contentY: number;
 };
 
-const MIN_SCALE = 0.5;
+const MIN_SCALE = 0.1;
 const MAX_SCALE = 2.5;
 const STEP = 0.1;
 
