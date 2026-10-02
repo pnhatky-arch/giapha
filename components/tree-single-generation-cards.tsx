@@ -174,8 +174,7 @@ export default function TreeSingleGenerationCards() {
       height: auto !important;
       min-height: 800px !important;
       margin: 22px auto 120px !important;
-      transform: none !important;
-      transform-origin: top center !important;
+      transform-origin: top left !important;
     }
     html[data-mobile-generation-detail] .zoom-controls {
       display: none !important;
