@@ -15,11 +15,6 @@ function materialScopeClause(scope: GenealogyDataScope) {
   return scope === 'sample' ? "id LIKE 'sample-%'" : "id NOT LIKE 'sample-%'";
 }
 
-function materialMediaPattern(scope: GenealogyDataScope) {
-  // Sample material IDs always start with sample-. Official material IDs are generated UUIDs.
-  return scope === 'sample' ? `${MATERIAL_MEDIA_PREFIX}sample-*` : `${MATERIAL_MEDIA_PREFIX}[!s]*`;
-}
-
 export async function clearScopedGenealogyData(scope: GenealogyDataScope) {
   const db = getDatabase();
   const eventKeys = scope === 'sample' ? SAMPLE_EVENT_KEYS : OFFICIAL_EVENT_KEYS;
@@ -31,18 +26,11 @@ export async function clearScopedGenealogyData(scope: GenealogyDataScope) {
   if (scope === 'sample') statements.push(...SAMPLE_FIXTURE_KEYS.map((key) => db.prepare('DELETE FROM app_settings WHERE key = ?').bind(key)));
   await db.batch(statements);
 
-  // Media chunks live in app_settings. GLOB lets us clear the matching material namespace
-  // without scanning media payloads in JavaScript.
   if (scope === 'sample') {
     await db.prepare('DELETE FROM app_settings WHERE key GLOB ?').bind(`${MATERIAL_MEDIA_PREFIX}sample-*`).run();
   } else {
-    // Official material IDs are UUID-like and never use the reserved sample- prefix.
-    const rows = await db.prepare(`SELECT id FROM material_items WHERE id NOT LIKE 'sample-%'`).all<{ id: string }>();
-    // The rows are normally empty because material_items were removed above. Clear any
-    // remaining official media by excluding the reserved sample namespace instead.
     await db.prepare('DELETE FROM app_settings WHERE key LIKE ? AND key NOT LIKE ?')
       .bind(`${MATERIAL_MEDIA_PREFIX}%`, `${MATERIAL_MEDIA_PREFIX}sample-%`).run();
-    void rows;
   }
 }
 
