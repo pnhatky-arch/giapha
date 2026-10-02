@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getDatabase, writeAuditLog } from '@/db';
 import { getInternalUser } from '@/app/internal-auth';
+import { getFamilyDataMode } from '@/lib/family-data-mode';
 import { getMaterialMediaBucket, isMaterialMediaKey, MATERIAL_MEDIA_PREFIX, materialMediaPrefix } from '@/lib/material-media';
+import { sampleMaterialMedia } from '@/lib/sample-fixtures';
 
 type MediaRecord = {
   key: string;
@@ -81,10 +83,10 @@ async function listMedia(itemId?: string) {
 }
 
 export async function GET(request: Request) {
-  try {
-    const url = new URL(request.url);
-    const key = url.searchParams.get('key');
-    if (key) {
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key');
+  if (key) {
+    try {
       if (!isMaterialMediaKey(key)) return new Response('Not found', { status: 404 });
       const bucket = getMaterialMediaBucket();
       const head = await bucket.head(key);
@@ -105,15 +107,34 @@ export async function GET(request: Request) {
       }
       headers.set('Content-Length', String(head.size));
       return new Response(object.body, { headers });
+    } catch {
+      return new Response('Not found', { status: 404 });
     }
+  }
 
-    const itemId = url.searchParams.get('itemId')?.trim() || undefined;
-    return NextResponse.json({ media: await listMedia(itemId) }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
+  const itemId = url.searchParams.get('itemId')?.trim() || undefined;
+  const sampleMode = (await getFamilyDataMode()) === 'sample';
+  const builtIn = sampleMode
+    ? sampleMaterialMedia.filter((attachment) => !itemId || attachment.itemId === itemId)
+    : [];
+
+  try {
+    const stored = await listMedia(itemId);
+    return NextResponse.json(
+      { media: [...builtIn, ...stored], storageAvailable: true },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } },
+    );
   } catch (error) {
+    if (sampleMode) {
+      return NextResponse.json(
+        { media: builtIn, storageAvailable: false, message: 'Đang dùng ảnh minh họa tích hợp của bộ dữ liệu thử nghiệm.' },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } },
+      );
+    }
     const message = error instanceof Error && error.message.includes('MEDIA')
       ? 'Kho ảnh/video R2 chưa được cấu hình.'
       : 'Không thể tải ảnh/video lúc này.';
-    return NextResponse.json({ message, media: [] }, { status: 503, headers: { 'Cache-Control': 'no-store, max-age=0' } });
+    return NextResponse.json({ message, media: [], storageAvailable: false }, { status: 503, headers: { 'Cache-Control': 'no-store, max-age=0' } });
   }
 }
 
