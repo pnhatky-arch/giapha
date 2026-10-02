@@ -2,43 +2,50 @@
 
 import { useEffect } from 'react';
 
-const GLOW_DURATION = 860;
+const TRACE_DURATION = 980;
 
 export default function GenerationSelectionGlow() {
   useEffect(() => {
+    let removeTimer = 0;
+
+    const clearTrace = () => {
+      window.clearTimeout(removeTimer);
+      document.querySelectorAll('.generation-gold-trace').forEach((node) => node.remove());
+    };
+
     const handleClick = (event: MouseEvent) => {
       if (!(event.target instanceof Element)) return;
       const button = event.target.closest<HTMLButtonElement>('.generation-list button');
       if (!button) return;
 
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      button.getAnimations().forEach((animation) => animation.cancel());
+      clearTrace();
 
-      if (reduceMotion) {
-        button.animate(
-          [
-            { boxShadow: 'inset 0 0 0 1px #f6d77d, 0 0 0 1px #f6d77d, 0 0 13px #ffd45e99' },
-            { boxShadow: 'inset 0 0 0 1px #e7b845, 0 0 0 1px #e7b845, 0 0 6px #ffd45e55' },
-          ],
-          { duration: 320, easing: 'ease-out' },
-        );
-        return;
+      const rect = button.getBoundingClientRect();
+      const computed = window.getComputedStyle(button);
+      const trace = document.createElement('div');
+      trace.className = 'generation-gold-trace';
+      trace.style.left = `${rect.left - 2}px`;
+      trace.style.top = `${rect.top - 2}px`;
+      trace.style.width = `${rect.width + 4}px`;
+      trace.style.height = `${rect.height + 4}px`;
+      trace.style.borderRadius = computed.borderRadius || '11px';
+      trace.setAttribute('aria-hidden', 'true');
+
+      for (const side of ['top', 'right', 'bottom', 'left']) {
+        const segment = document.createElement('span');
+        segment.className = `generation-gold-segment ${side}`;
+        trace.appendChild(segment);
       }
 
-      button.animate(
-        [
-          { offset: 0, borderColor: '#ffe39a', boxShadow: '0 -3px 0 #fff3b2, 0 -5px 13px #ffd34fcc, inset 0 0 0 1px #e6b342' },
-          { offset: 0.24, borderColor: '#ffd55f', boxShadow: '3px 0 0 #fff3b2, 5px 0 13px #ffd34fcc, inset 0 0 0 1px #e6b342' },
-          { offset: 0.49, borderColor: '#ffd55f', boxShadow: '0 3px 0 #fff3b2, 0 5px 13px #ffd34fcc, inset 0 0 0 1px #e6b342' },
-          { offset: 0.74, borderColor: '#ffd55f', boxShadow: '-3px 0 0 #fff3b2, -5px 0 13px #ffd34fcc, inset 0 0 0 1px #e6b342' },
-          { offset: 1, borderColor: '#f0bf47', boxShadow: '0 -3px 0 #fff3b2, 0 -5px 13px #ffd34fcc, inset 0 0 0 1px #e6b342' },
-        ],
-        { duration: GLOW_DURATION, easing: 'linear', iterations: 1 },
-      );
+      document.body.appendChild(trace);
+      removeTimer = window.setTimeout(clearTrace, TRACE_DURATION + 120);
     };
 
     document.addEventListener('click', handleClick, true);
-    return () => document.removeEventListener('click', handleClick, true);
+    return () => {
+      document.removeEventListener('click', handleClick, true);
+      clearTrace();
+    };
   }, []);
 
   return <style>{`
@@ -49,8 +56,82 @@ export default function GenerationSelectionGlow() {
       transform: scale(.985);
     }
     .generation-list button.selected {
-      border-color: #e4b33e;
-      box-shadow: inset 3px 0 #efc65a, 0 0 10px #eabf4938;
+      border-color: #edbf4d !important;
+      box-shadow: inset 3px 0 #f4cd65, 0 0 12px #ffd45e52 !important;
+    }
+
+    .generation-gold-trace {
+      position: fixed;
+      z-index: 2147483000;
+      pointer-events: none;
+      box-sizing: border-box;
+      overflow: visible;
+      border: 1px solid rgba(239,190,69,.24);
+      box-shadow: 0 0 8px rgba(255,210,74,.34), inset 0 0 6px rgba(255,225,125,.12);
+    }
+    .generation-gold-segment {
+      position: absolute;
+      display: block;
+      pointer-events: none;
+      opacity: 0;
+      background: linear-gradient(90deg, transparent 0%, #ffd55d 22%, #fff7c7 52%, #ffd04a 76%, transparent 100%);
+      filter: drop-shadow(0 0 3px #ffe38a) drop-shadow(0 0 7px #ffc62f);
+    }
+    .generation-gold-segment.top {
+      top: -1px;
+      left: 8px;
+      height: 3px;
+      width: calc(100% - 16px);
+      transform: scaleX(0);
+      transform-origin: left center;
+      animation: generation-trace-x .22s linear 0s forwards;
+    }
+    .generation-gold-segment.right {
+      top: 8px;
+      right: -1px;
+      width: 3px;
+      height: calc(100% - 16px);
+      transform: scaleY(0);
+      transform-origin: center top;
+      animation: generation-trace-y .22s linear .22s forwards;
+      background: linear-gradient(180deg, transparent 0%, #ffd55d 22%, #fff7c7 52%, #ffd04a 76%, transparent 100%);
+    }
+    .generation-gold-segment.bottom {
+      right: 8px;
+      bottom: -1px;
+      height: 3px;
+      width: calc(100% - 16px);
+      transform: scaleX(0);
+      transform-origin: right center;
+      animation: generation-trace-x .22s linear .44s forwards;
+    }
+    .generation-gold-segment.left {
+      left: -1px;
+      bottom: 8px;
+      width: 3px;
+      height: calc(100% - 16px);
+      transform: scaleY(0);
+      transform-origin: center bottom;
+      animation: generation-trace-y .22s linear .66s forwards;
+      background: linear-gradient(180deg, transparent 0%, #ffd55d 22%, #fff7c7 52%, #ffd04a 76%, transparent 100%);
+    }
+    @keyframes generation-trace-x {
+      0% { transform: scaleX(0); opacity: 0; }
+      12% { opacity: 1; }
+      86% { opacity: 1; }
+      100% { transform: scaleX(1); opacity: .92; }
+    }
+    @keyframes generation-trace-y {
+      0% { transform: scaleY(0); opacity: 0; }
+      12% { opacity: 1; }
+      86% { opacity: 1; }
+      100% { transform: scaleY(1); opacity: .92; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .generation-gold-segment {
+        animation-duration: .01ms !important;
+        animation-delay: 0s !important;
+      }
     }
   `}</style>;
 }
