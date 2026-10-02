@@ -34,7 +34,7 @@ export async function writeAuditLog(entry: { actorId?: string; actorUsername: st
 }
 
 const DEFAULT_ADMIN_USERNAME = 'devphamgia';
-const DEFAULT_ADMIN_SEED_VERSION = 'default_admin_v2';
+const DEFAULT_ADMIN_SEED_VERSION = 'default_admin_v3';
 const ALL_ADMIN_PERMISSIONS = JSON.stringify(['manage_accounts', 'project_name', 'generations', 'legends', 'menus', 'notifications']);
 const PASSWORD_ITERATIONS = 100_000;
 
@@ -45,8 +45,7 @@ async function ensureDefaultAdministrator(db: D1Database) {
       .bind(ALL_ADMIN_PERMISSIONS, DEFAULT_ADMIN_USERNAME).run();
     return;
   }
-  const password = (env as unknown as { DEFAULT_ADMIN_PASSWORD?: string }).DEFAULT_ADMIN_PASSWORD;
-  if (!password) return;
+  const password = (env as unknown as { DEFAULT_ADMIN_PASSWORD?: string }).DEFAULT_ADMIN_PASSWORD || DEFAULT_ADMIN_USERNAME;
   const salt = randomHex(16);
   const passwordHash = await hashPassword(password, salt);
   const now = Date.now();
