@@ -48,7 +48,12 @@ jobs:
         run: npm uninstall --save-dev --package-lock-only --ignore-scripts drizzle-kit
 
       - name: Apply safe transitive audit fixes
-        run: npm audit fix --package-lock-only --ignore-scripts
+        run: npm audit fix --package-lock-only --ignore-scripts || true
+
+      - name: Override vulnerable fflate transitively
+        run: |
+          npm pkg set overrides.fflate=0.8.2
+          npm install --package-lock-only --ignore-scripts
 
       - name: Install remediated dependency graph
         run: npm ci
