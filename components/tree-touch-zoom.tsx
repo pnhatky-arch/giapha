@@ -21,6 +21,7 @@ type PanGesture = {
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 2.5;
 const STEP = 0.1;
+const SAFE_PAN_MARGIN = 72;
 
 function isMobileTreeLayout() {
   const shell = document.querySelector<HTMLElement>('.app-shell');
@@ -71,10 +72,10 @@ function panBounds(viewport: HTMLElement, target: HTMLElement, scale: number) {
   const centeredY = (viewHeight - scaledHeight) / 2;
 
   return {
-    minX: scaledWidth <= viewWidth ? centeredX : viewWidth - scaledWidth,
-    maxX: scaledWidth <= viewWidth ? centeredX : 0,
-    minY: scaledHeight <= viewHeight ? centeredY : viewHeight - scaledHeight,
-    maxY: scaledHeight <= viewHeight ? centeredY : 0,
+    minX: scaledWidth <= viewWidth ? centeredX : viewWidth - scaledWidth - SAFE_PAN_MARGIN,
+    maxX: scaledWidth <= viewWidth ? centeredX : SAFE_PAN_MARGIN,
+    minY: scaledHeight <= viewHeight ? centeredY : viewHeight - scaledHeight - SAFE_PAN_MARGIN,
+    maxY: scaledHeight <= viewHeight ? centeredY : SAFE_PAN_MARGIN,
     scaledWidth,
     scaledHeight,
   };
