@@ -67,7 +67,7 @@ async function ensureSampleMaterials() {
 
   statements.push(db.prepare(`INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
-    .bind(SAMPLE_MARKER_KEY, SAMPLE_FIXTURE_VERSION, Date.now(), 'sample-fixture'));
+    .bind(SAMPLE_MARKER_KEY, SAMPLE_FIXTURE_VERSION, Date.now(), null));
   await db.batch(statements);
 }
 
@@ -167,7 +167,7 @@ export async function DELETE(request: Request) {
   const ids = [...descendantIds(allItems, current.id)];
   const db = getDatabase();
   await db.batch(ids.map((id) => db.prepare('DELETE FROM material_items WHERE id = ?').bind(id)));
-  try { await deleteMaterialMedia(ids); } catch { /* R2 may not be configured yet; deletion of D1 material must still succeed. */ }
+  try { await deleteMaterialMedia(ids); } catch { /* Media cleanup must not block deletion of the D1 material record. */ }
   const countText = ids.length > 1 ? ` cùng ${ids.length - 1} mục bên trong` : '';
   await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Xóa tư liệu', entity: 'Tư liệu gia phả', details: `Đã xóa ${activityFor(current.kind)} “${current.title}”${countText}` });
   return NextResponse.json({ ok: true, deletedIds: ids });
