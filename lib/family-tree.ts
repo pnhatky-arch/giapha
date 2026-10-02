@@ -14,8 +14,8 @@ export type FamilyPerson = {
 
 export type FamilyDataMode = 'sample' | 'official' | 'empty';
 
-export const SAMPLE_MEMBER_COUNT = 168;
-export const SAMPLE_GENERATION_COUNTS = [1, 3, 9, 27, 64, 64] as const;
+export const SAMPLE_MEMBER_COUNT = 68;
+export const SAMPLE_GENERATION_COUNTS = [1, 3, 9, 18, 24, 13] as const;
 
 const secondGeneration = [
   { name: 'Phạm Văn Bình', birthDate: '1938-02-12' },
@@ -82,7 +82,7 @@ function roleFor(generation: number, index: number) {
   if (generation === 3 && index % 3 === 0) return `Trưởng nhánh ${Math.floor(index / 3) + 1}`;
   if (generation === 4 && index % 9 === 0) return 'Đại diện nhánh';
   if (generation === 5 && index % 16 === 0) return 'Hậu duệ tiêu biểu';
-  if (generation === 6 && index % 16 === 0) return 'Thành viên trẻ';
+  if (generation === 6 && index % 8 === 0) return 'Thành viên trẻ';
   return undefined;
 }
 
@@ -92,7 +92,10 @@ function createSampleFamily(): FamilyPerson {
   let fifthIndex = 0;
   let sixthIndex = 0;
 
-  const makeSixthGeneration = (parentName: string): FamilyPerson[] => {
+  const makeSixthGeneration = (parentName: string, parentIndex: number): FamilyPerson[] => {
+    // Giữ đời thứ 6 phân bổ trên nhiều nhánh thay vì dồn vào một cụm.
+    const hasChild = parentIndex % 2 === 0 || parentIndex === 23;
+    if (!hasChild) return [];
     const index = sixthIndex++;
     const name = sixthGeneration[index];
     return [{
@@ -115,14 +118,15 @@ function createSampleFamily(): FamilyPerson {
       role: roleFor(5, index),
       relationship: `Con của ${parentName}`,
       ...lifeDates(5, index),
-      children: makeSixthGeneration(name),
+      children: makeSixthGeneration(name, index),
     };
   });
 
-  const makeFourthGeneration = (parentName: string): FamilyPerson[] => Array.from({ length: 3 }, () => {
+  const makeFourthGeneration = (parentName: string): FamilyPerson[] => Array.from({ length: 2 }, () => {
     const index = fourthIndex++;
     const name = fourthGeneration[index];
-    const fifthCount = 2 + (index < 10 ? 1 : 0);
+    // Mỗi nhánh vẫn có hậu duệ; cứ 3 thành viên đời 4 thì một người có 2 con đời 5.
+    const fifthCount = index % 3 === 0 ? 2 : 1;
     return {
       id: nextId++,
       name,
@@ -167,7 +171,7 @@ function createSampleFamily(): FamilyPerson {
   return root;
 }
 
-// Bộ dữ liệu thử nghiệm: 1 + 3 + 9 + 27 + 64 + 64 = 168 thành viên / 6 đời.
+// Bộ dữ liệu thử nghiệm: 1 + 3 + 9 + 18 + 24 + 13 = 68 thành viên / 6 đời.
 export const initialFamily: FamilyPerson = createSampleFamily();
 
 // Khung rỗng được tạo sau khi quản trị cấp cao xác nhận bắt đầu dữ liệu chính thức.
