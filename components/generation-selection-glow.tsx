@@ -3,29 +3,28 @@
 import { useEffect } from 'react';
 
 const TRACE_DURATION = 490;
+const MENU_CLOSE_DELAY = 60;
 
 export default function GenerationSelectionGlow() {
   useEffect(() => {
     let removeTimer = 0;
+    let closeTimer = 0;
 
     const clearTrace = () => {
       window.clearTimeout(removeTimer);
       document.querySelectorAll('.generation-gold-trace').forEach((node) => node.remove());
     };
 
-    const closeMobileMenu = (button: HTMLButtonElement) => {
-      const panel = button.closest<HTMLElement>('.filter-panel');
-      if (!panel?.classList.contains('open')) return;
-
-      const isMobileViewport = window.matchMedia('(max-width: 740px)').matches;
-      const isForcedMobileMode = Boolean(button.closest('.mode-mobile'));
-      if (!isMobileViewport && !isForcedMobileMode) return;
-
-      window.requestAnimationFrame(() => {
-        clearTrace();
+    const closeOpenGenerationMenu = () => {
+      window.clearTimeout(closeTimer);
+      closeTimer = window.setTimeout(() => {
+        const panel = document.querySelector<HTMLElement>('.filter-panel.open');
+        if (!panel) return;
         const closeButton = panel.querySelector<HTMLButtonElement>('.close-menu');
-        closeButton?.click();
-      });
+        if (!closeButton) return;
+        clearTrace();
+        closeButton.click();
+      }, MENU_CLOSE_DELAY);
     };
 
     const handleClick = (event: MouseEvent) => {
@@ -54,13 +53,16 @@ export default function GenerationSelectionGlow() {
 
       document.body.appendChild(trace);
       removeTimer = window.setTimeout(clearTrace, TRACE_DURATION + 60);
-      closeMobileMenu(button);
+
+      // React handles setGeneration(...) first. The existing close button then
+      // updates menuOpen through the app's own state handler.
+      closeOpenGenerationMenu();
     };
 
-    // Bubble phase is intentional: React must process setGeneration(...) first.
     document.addEventListener('click', handleClick);
     return () => {
       document.removeEventListener('click', handleClick);
+      window.clearTimeout(closeTimer);
       clearTrace();
     };
   }, []);
@@ -75,6 +77,17 @@ export default function GenerationSelectionGlow() {
     .generation-list button.selected {
       border-color: #edbf4d !important;
       box-shadow: inset 3px 0 #f4cd65, 0 0 12px #ffd45e52 !important;
+    }
+
+    /* Forced Mobile mode used to center the drawer with left:50%.
+       Keep the drawer attached to the physical left edge, like normal mobile. */
+    .mode-mobile .filter-panel {
+      left: 0 !important;
+      right: auto !important;
+      transform: translateX(-102%) !important;
+    }
+    .mode-mobile .filter-panel.open {
+      transform: translateX(0) !important;
     }
 
     .generation-gold-trace {
