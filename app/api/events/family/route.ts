@@ -1,21 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getDatabase, writeAuditLog } from '@/db';
 import { getInternalUser } from '@/app/internal-auth';
+import { getFamilyDataMode } from '@/lib/family-data-mode';
+import { sampleFamilyWorkEvents, type SampleFamilyWorkEvent } from '@/lib/sample-fixtures';
 
-const SETTINGS_KEY = 'family_work_events';
+const OFFICIAL_SETTINGS_KEY = 'family_work_events';
+const SAMPLE_SETTINGS_KEY = 'sample_family_work_events_v1';
 const MAX_EVENTS = 150;
 
-type FamilyWorkEvent = {
-  id: string;
-  title: string;
-  date: string;
-  location: string;
-  note: string;
-  repeatYearly: boolean;
-  createdAt: number;
-  updatedAt: number;
-  createdBy: string;
-};
+type FamilyWorkEvent = SampleFamilyWorkEvent;
 
 function isValidIsoDate(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -42,23 +35,28 @@ function isStoredEvent(value: unknown): value is FamilyWorkEvent {
     && typeof event.createdBy === 'string';
 }
 
-async function readEvents(): Promise<FamilyWorkEvent[]> {
-  const row = await getDatabase().prepare('SELECT value FROM app_settings WHERE key = ?').bind(SETTINGS_KEY).first<{ value: string }>();
-  if (!row?.value) return [];
+function settingsKey(sampleMode: boolean) {
+  return sampleMode ? SAMPLE_SETTINGS_KEY : OFFICIAL_SETTINGS_KEY;
+}
+
+async function readEvents(sampleMode: boolean): Promise<FamilyWorkEvent[]> {
+  const row = await getDatabase().prepare('SELECT value FROM app_settings WHERE key = ?')
+    .bind(settingsKey(sampleMode)).first<{ value: string }>();
+  if (!row?.value) return sampleMode ? sampleFamilyWorkEvents() : [];
   try {
     const parsed = JSON.parse(row.value) as unknown;
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) return sampleMode ? sampleFamilyWorkEvents() : [];
     return parsed.filter(isStoredEvent).slice(0, MAX_EVENTS);
   } catch {
-    return [];
+    return sampleMode ? sampleFamilyWorkEvents() : [];
   }
 }
 
-async function saveEvents(events: FamilyWorkEvent[], userId: string) {
+async function saveEvents(events: FamilyWorkEvent[], userId: string, sampleMode: boolean) {
   const now = Date.now();
   await getDatabase().prepare(`INSERT INTO app_settings (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
-    .bind(SETTINGS_KEY, JSON.stringify(events.slice(0, MAX_EVENTS)), now, userId).run();
+    .bind(settingsKey(sampleMode), JSON.stringify(events.slice(0, MAX_EVENTS)), now, userId).run();
 }
 
 function validateInput(body: unknown) {
@@ -80,9 +78,10 @@ function validateInput(body: unknown) {
 
 export async function GET() {
   try {
-    const user = await getInternalUser();
-    const events = await readEvents();
-    return NextResponse.json({ events, canEdit: Boolean(user) }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
+    const [user, mode] = await Promise.all([getInternalUser(), getFamilyDataMode()]);
+    const sampleMode = mode === 'sample';
+    const events = await readEvents(sampleMode);
+    return NextResponse.json({ events, canEdit: Boolean(user), sampleMode }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
   } catch {
     return NextResponse.json({ events: [], canEdit: false }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
   }
@@ -95,18 +94,19 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return NextResponse.json({ message: 'Dữ liệu gửi lên không hợp lệ.' }, { status: 400 }); }
   const checked = validateInput(body);
   if ('error' in checked) return NextResponse.json({ message: checked.error }, { status: 400 });
-  const events = await readEvents();
+  const sampleMode = (await getFamilyDataMode()) === 'sample';
+  const events = await readEvents(sampleMode);
   if (events.length >= MAX_EVENTS) return NextResponse.json({ message: 'Danh sách Việc họ đã đạt giới hạn.' }, { status: 409 });
   const now = Date.now();
   const event: FamilyWorkEvent = {
-    id: crypto.randomUUID(),
+    id: sampleMode ? `sample-user-family-work-${crypto.randomUUID()}` : crypto.randomUUID(),
     ...checked.value,
     createdAt: now,
     updatedAt: now,
     createdBy: user.username,
   };
   events.push(event);
-  await saveEvents(events, user.id);
+  await saveEvents(events, user.id, sampleMode);
   await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Thêm Việc họ', entity: 'Sự kiện', details: `Đã thêm ${event.title} ngày ${event.date}` });
   return NextResponse.json({ ok: true, event });
 }
@@ -121,12 +121,13 @@ export async function PUT(request: Request) {
   }
   const checked = validateInput(body);
   if ('error' in checked) return NextResponse.json({ message: checked.error }, { status: 400 });
+  const sampleMode = (await getFamilyDataMode()) === 'sample';
   const id = (body as { id: string }).id;
-  const events = await readEvents();
+  const events = await readEvents(sampleMode);
   const index = events.findIndex((event) => event.id === id);
   if (index < 0) return NextResponse.json({ message: 'Không tìm thấy Việc họ.' }, { status: 404 });
   events[index] = { ...events[index], ...checked.value, updatedAt: Date.now() };
-  await saveEvents(events, user.id);
+  await saveEvents(events, user.id, sampleMode);
   await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Sửa Việc họ', entity: 'Sự kiện', details: `Đã sửa ${events[index].title}` });
   return NextResponse.json({ ok: true, event: events[index] });
 }
@@ -137,10 +138,11 @@ export async function DELETE(request: Request) {
   let body: { id?: unknown };
   try { body = await request.json() as { id?: unknown }; } catch { return NextResponse.json({ message: 'Dữ liệu gửi lên không hợp lệ.' }, { status: 400 }); }
   if (typeof body.id !== 'string') return NextResponse.json({ message: 'Thiếu mã Việc họ.' }, { status: 400 });
-  const events = await readEvents();
+  const sampleMode = (await getFamilyDataMode()) === 'sample';
+  const events = await readEvents(sampleMode);
   const existing = events.find((event) => event.id === body.id);
   if (!existing) return NextResponse.json({ message: 'Không tìm thấy Việc họ.' }, { status: 404 });
-  await saveEvents(events.filter((event) => event.id !== body.id), user.id);
+  await saveEvents(events.filter((event) => event.id !== body.id), user.id, sampleMode);
   await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Xóa Việc họ', entity: 'Sự kiện', details: `Đã xóa ${existing.title}` });
   return NextResponse.json({ ok: true });
 }
