@@ -4,8 +4,7 @@ import vinext from 'vinext';
 import { defineConfig } from 'vite';
 import hostingConfig from './.openai/hosting.json';
 
-const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
-  '00000000-0000-4000-8000-000000000000';
+const GIAPHA_DATABASE_ID = '93bbf887-b016-41a3-97e0-34801c56f68c';
 
 const { d1, r2 } = hostingConfig as { d1?: string; r2?: string };
 
@@ -19,8 +18,8 @@ const localBindingConfig = {
     ? [
         {
           binding: d1,
-          database_name: 'site-creator-d1',
-          database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
+          database_name: 'giapha-db',
+          database_id: GIAPHA_DATABASE_ID,
         },
       ]
     : [],
