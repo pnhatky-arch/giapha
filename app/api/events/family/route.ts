@@ -39,6 +39,10 @@ function settingsKey(sampleMode: boolean) {
   return sampleMode ? SAMPLE_SETTINGS_KEY : OFFICIAL_SETTINGS_KEY;
 }
 
+function mediaPrefix(sampleMode: boolean, eventId: string) {
+  return `event_media:${sampleMode ? 'sample' : 'official'}:family:${eventId}:`;
+}
+
 async function readEvents(sampleMode: boolean): Promise<FamilyWorkEvent[]> {
   const row = await getDatabase().prepare('SELECT value FROM app_settings WHERE key = ?')
     .bind(settingsKey(sampleMode)).first<{ value: string }>();
@@ -143,6 +147,7 @@ export async function DELETE(request: Request) {
   const existing = events.find((event) => event.id === body.id);
   if (!existing) return NextResponse.json({ message: 'Không tìm thấy Việc họ.' }, { status: 404 });
   await saveEvents(events.filter((event) => event.id !== body.id), user.id, sampleMode);
-  await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Xóa Việc họ', entity: 'Sự kiện', details: `Đã xóa ${existing.title}` });
+  await getDatabase().prepare('DELETE FROM app_settings WHERE key LIKE ?').bind(`${mediaPrefix(sampleMode, body.id)}%`).run();
+  await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Xóa Việc họ', entity: 'Sự kiện', details: `Đã xóa ${existing.title} và ảnh đính kèm` });
   return NextResponse.json({ ok: true });
 }
