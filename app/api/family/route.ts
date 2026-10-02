@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ensureAuthSchema, getDatabase, writeAuditLog } from '@/db';
 import { getInternalUser } from '@/app/internal-auth';
 import { cloneFamily, flattenFamily, initialFamily, SAMPLE_MEMBER_COUNT, type FamilyDataMode, type FamilyPerson } from '@/lib/family-tree';
+import { clearAllGenealogyData, clearScopedGenealogyData } from '@/lib/genealogy-data-reset';
 
 const TREE_ID = 'primary';
 const DATA_MODE_KEY = 'family_data_mode';
@@ -117,6 +118,7 @@ export async function PUT(request: Request) {
   const savedMode = await getEffectiveDataMode();
   if (savedMode === 'sample' && body.dataMode === undefined) return NextResponse.json({ message: 'Dữ liệu thử nghiệm chỉ để tham khảo. Quản trị cấp cao cần bắt đầu dữ liệu chính thức trước khi chỉnh sửa.' }, { status: 409 });
   const dataMode = body.dataMode ?? (savedMode === 'empty' ? 'official' : savedMode);
+  const action = typeof body.activity?.action === 'string' ? body.activity.action : 'Cập nhật gia phả';
   const db = getDatabase();
   const now = Date.now();
   await db.batch([
@@ -127,11 +129,17 @@ export async function PUT(request: Request) {
       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
       .bind(DATA_MODE_KEY, dataMode, now, user.id)] : []),
   ]);
-  const action = typeof body.activity?.action === 'string' ? body.activity.action : 'Cập nhật gia phả';
+
+  if (action === 'Phục hồi dữ liệu thử nghiệm' && dataMode === 'sample') {
+    await clearScopedGenealogyData('sample');
+  } else if (action === 'Bắt đầu dữ liệu chính thức' && dataMode === 'official') {
+    await clearScopedGenealogyData('official');
+  }
+
   const details = action === 'Bắt đầu dữ liệu chính thức'
-    ? `Đã xóa ${SAMPLE_MEMBER_COUNT} thành viên dữ liệu thử nghiệm và tạo khung gia phả trống.`
+    ? `Đã xóa ${SAMPLE_MEMBER_COUNT} thành viên dữ liệu thử nghiệm và tạo khung gia phả trống; dữ liệu Sự kiện và Tư liệu chính thức được khởi tạo sạch.`
     : action === 'Phục hồi dữ liệu thử nghiệm'
-      ? `Đã khôi phục bộ dữ liệu thử nghiệm gồm ${SAMPLE_MEMBER_COUNT} thành viên, 6 đời.`
+      ? `Đã khôi phục bộ dữ liệu thử nghiệm gồm ${SAMPLE_MEMBER_COUNT} thành viên, 6 đời và đặt lại Sự kiện/Tư liệu mẫu.`
       : typeof body.activity?.details === 'string' ? body.activity.details : 'Đã cập nhật dữ liệu gia phả';
   await writeAuditLog({ actorId: user.id, actorUsername: user.username, action, entity: auditEntityFor(action), details });
   return NextResponse.json({ ok: true, family, dataMode });
@@ -151,6 +159,7 @@ export async function DELETE() {
       ON CONFLICT(key) DO UPDATE SET value = 'empty', updated_at = excluded.updated_at, updated_by = excluded.updated_by`)
       .bind(DATA_MODE_KEY, now, user.id),
   ]);
-  await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Xóa dữ liệu', entity: 'Gia phả', details: 'Đã xóa toàn bộ dữ liệu gia phả khỏi hệ thống' });
+  await clearAllGenealogyData();
+  await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Xóa dữ liệu', entity: 'Gia phả', details: 'Đã xóa cây gia phả, Sự kiện, Tư liệu và media khỏi hệ thống' });
   return NextResponse.json({ ok: true });
 }
