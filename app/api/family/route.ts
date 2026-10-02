@@ -93,6 +93,7 @@ export async function GET() {
     ]);
     if (!row) return NextResponse.json({ family: cloneFamily(initialFamily), dataMode: 'sample' satisfies FamilyDataMode });
     if (row.data === 'null') return NextResponse.json({ family: null, dataMode: savedMode ?? 'empty' });
+    if (savedMode === 'sample') return NextResponse.json({ family: cloneFamily(initialFamily), dataMode: 'sample' satisfies FamilyDataMode });
     const stored = JSON.parse(row.data) as unknown;
     if (!validTree(stored)) return NextResponse.json({ family: cloneFamily(initialFamily), dataMode: 'sample' satisfies FamilyDataMode });
     if (isLegacySampleTree(stored)) return NextResponse.json({ family: cloneFamily(initialFamily), dataMode: 'sample' satisfies FamilyDataMode });
