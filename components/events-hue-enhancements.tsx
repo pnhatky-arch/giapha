@@ -2,30 +2,32 @@
 
 import { useEffect } from 'react';
 
-type EventFilter = 'all' | 'memorial' | 'birthday' | 'tomb' | 'family';
+type EventFilter = 'all' | 'birthday' | 'memorial' | 'tomb' | 'family';
 type TextSnapshot = { source: string; target: string };
 type AttributeSnapshot = { source: string; target: string };
+type FamilyWorkEvent = {
+  id: string;
+  title: string;
+  date: string;
+  location: string;
+  note: string;
+  repeatYearly: boolean;
+  createdAt: number;
+  updatedAt: number;
+  createdBy: string;
+};
 
 const HUE_REPLACEMENTS: Array<[string, string]> = [
   ['Ngày sinh nhật và ngày dỗ được lấy từ thông tin hồ sơ thành viên.', 'Ngày sinh và ngày kỵ được lấy từ hồ sơ của bà con trong họ.'],
   ['Khách tham quan chỉ được xem cây gia phả và không thể mở Cài đặt hoặc chỉnh sửa dữ liệu.', 'Khách chỉ coi được cây gia phả, không mở Cài đặt hay sửa dữ liệu.'],
   ['Hãy thêm ngày sinh hoặc ngày mất và ngày dỗ trong hồ sơ thành viên.', 'Thêm ngày sinh, ngày mất và ngày kỵ vô hồ sơ thành viên.'],
-  ['Thành viên mới sẽ được thêm vào nhánh đã chọn.', 'Người mới sẽ được thêm vô nhánh đã chọn.'],
-  ['Bạn đang xem với vai trò khách — chỉ có quyền xem', 'Đang coi với vai trò khách — chỉ có quyền xem'],
-  ['Không cần tài khoản, chỉ xem nội dung', 'Không cần tài khoản, chỉ coi nội dung'],
-  ['Vui lòng chọn một người thuộc gia phả.', 'Mời chọn một người trong gia phả.'],
   ['Chưa có sự kiện nào được cập nhật.', 'Chưa có sự kiện nào được ghi.'],
-  ['Chọn cách bạn muốn truy cập', 'Chọn cách vô gia phả'],
-  ['Tôi hiểu, tiếp tục xem', 'Đã rõ, coi tiếp'],
   ['Sự kiện gia đình', 'Sự Kiện'],
   ['Tìm thành viên', 'Tìm người trong họ'],
-  ['Thêm vào nhánh của', 'Thêm vô nhánh của'],
-  ['Thêm vào gia phả', 'Thêm vô gia phả'],
   ['Lặp lại hằng năm', 'Hằng năm'],
   ['Khách tham quan', 'Khách coi gia phả'],
   ['Ngày dỗ', 'Ngày kỵ'],
   ['Quay lại', 'Trở lui'],
-  ['Tiếp tục xem', 'Coi tiếp'],
 ].sort((a, b) => b[0].length - a[0].length);
 
 function isVietnameseUi() {
@@ -37,9 +39,26 @@ function hueText(value: string) {
   return HUE_REPLACEMENTS.reduce((result, [from, to]) => result.split(from).join(to), value);
 }
 
+function formatDate(value: string, repeatYearly: boolean) {
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return new Intl.DateTimeFormat('vi-VN', repeatYearly
+    ? { day: '2-digit', month: 'long' }
+    : { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>'"]/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
+  }[character] ?? character));
+}
+
 export default function EventsHueEnhancements() {
   useEffect(() => {
     let activeFilter: EventFilter = 'all';
+    let familyEvents: FamilyWorkEvent[] = [];
+    let familyLoaded = false;
+    let familyLoading: Promise<void> | null = null;
     let syncFrame = 0;
     let orbitTimer = 0;
     const textSnapshots = new WeakMap<Text, TextSnapshot>();
@@ -71,56 +90,57 @@ export default function EventsHueEnhancements() {
       orbitTimer = window.setTimeout(clearFilterOrbit, 760);
     };
 
+    const closeEditor = () => {
+      document.querySelector('.event-editor-dialog')?.remove();
+    };
+
     const openChapaDialog = () => {
-      document.querySelector('.event-chapa-dialog')?.remove();
+      closeEditor();
       const overlay = document.createElement('div');
-      overlay.className = 'event-chapa-dialog';
+      overlay.className = 'event-editor-dialog';
       overlay.setAttribute('role', 'dialog');
       overlay.setAttribute('aria-modal', 'true');
       overlay.setAttribute('aria-label', 'Thêm lịch Chạp mộ');
       overlay.innerHTML = `
-        <div class="event-chapa-card">
-          <div class="event-chapa-head">
-            <div><strong>Thêm lịch Chạp mộ</strong><span>Ghi lịch chung của dòng họ</span></div>
-            <button type="button" class="event-chapa-close" aria-label="Đóng">×</button>
+        <div class="event-editor-card">
+          <div class="event-editor-head">
+            <div><strong>Thêm lịch Chạp mộ</strong><span>Ghi lịch Chạp mộ chung của dòng họ</span></div>
+            <button type="button" class="event-editor-close" aria-label="Đóng">×</button>
           </div>
-          <form class="event-chapa-form">
+          <form class="event-editor-form">
             <label>Ngày Chạp mộ<input name="date" type="date" required></label>
             <label>Địa điểm<input name="location" type="text" maxlength="120" required placeholder="Ví dụ: Nghĩa trang dòng họ"></label>
             <label>Khu mộ / chi họ<input name="branch" type="text" maxlength="120" placeholder="Ví dụ: Khu mộ tổ · Chi trưởng"></label>
-            <label class="event-chapa-note">Ghi chú<textarea name="note" maxlength="500" rows="3" placeholder="Việc chuẩn bị, giờ tập trung, lễ vật…"></textarea></label>
-            <label class="event-chapa-repeat"><input name="repeatYearly" type="checkbox" checked><span>Hằng năm</span></label>
-            <p class="event-chapa-message" role="alert"></p>
-            <div class="event-chapa-actions"><button type="button" class="event-chapa-cancel">Trở lui</button><button type="submit" class="event-chapa-save">Lưu Chạp mộ</button></div>
+            <label class="event-editor-wide">Ghi chú<textarea name="note" maxlength="500" rows="3" placeholder="Việc chuẩn bị, giờ tập trung, lễ vật…"></textarea></label>
+            <label class="event-editor-repeat event-editor-wide"><input name="repeatYearly" type="checkbox" checked><span>Hằng năm</span></label>
+            <p class="event-editor-message event-editor-wide" role="alert"></p>
+            <div class="event-editor-actions event-editor-wide"><button type="button" class="event-editor-cancel">Trở lui</button><button type="submit" class="event-editor-save">Lưu Chạp mộ</button></div>
           </form>
         </div>`;
       document.body.appendChild(overlay);
-
       const close = () => overlay.remove();
-      overlay.querySelector('.event-chapa-close')?.addEventListener('click', close);
-      overlay.querySelector('.event-chapa-cancel')?.addEventListener('click', close);
+      overlay.querySelector('.event-editor-close')?.addEventListener('click', close);
+      overlay.querySelector('.event-editor-cancel')?.addEventListener('click', close);
       overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
-
-      const form = overlay.querySelector<HTMLFormElement>('.event-chapa-form');
+      const form = overlay.querySelector<HTMLFormElement>('.event-editor-form');
       form?.addEventListener('submit', async (event) => {
         event.preventDefault();
-        const message = form.querySelector<HTMLElement>('.event-chapa-message');
-        const save = form.querySelector<HTMLButtonElement>('.event-chapa-save');
+        const message = form.querySelector<HTMLElement>('.event-editor-message');
+        const save = form.querySelector<HTMLButtonElement>('.event-editor-save');
         const data = new FormData(form);
-        const payload = {
-          date: String(data.get('date') ?? ''),
-          location: String(data.get('location') ?? ''),
-          branch: String(data.get('branch') ?? ''),
-          note: String(data.get('note') ?? ''),
-          repeatYearly: data.get('repeatYearly') === 'on',
-        };
         if (save) save.disabled = true;
         if (message) message.textContent = 'Đang lưu…';
         try {
           const response = await fetch('/api/events/chapa', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+            body: JSON.stringify({
+              date: String(data.get('date') ?? ''),
+              location: String(data.get('location') ?? ''),
+              branch: String(data.get('branch') ?? ''),
+              note: String(data.get('note') ?? ''),
+              repeatYearly: data.get('repeatYearly') === 'on',
+            }),
           });
           const result = await response.json() as { message?: string };
           if (!response.ok) throw new Error(result.message || 'Không thể lưu lịch Chạp mộ.');
@@ -132,6 +152,139 @@ export default function EventsHueEnhancements() {
         }
       });
       window.setTimeout(() => overlay.querySelector<HTMLInputElement>('input[name="date"]')?.focus(), 20);
+    };
+
+    const openFamilyDialog = (existing?: FamilyWorkEvent) => {
+      closeEditor();
+      const overlay = document.createElement('div');
+      overlay.className = 'event-editor-dialog';
+      overlay.setAttribute('role', 'dialog');
+      overlay.setAttribute('aria-modal', 'true');
+      overlay.setAttribute('aria-label', existing ? 'Sửa Việc họ' : 'Thêm Việc họ');
+      overlay.innerHTML = `
+        <div class="event-editor-card">
+          <div class="event-editor-head">
+            <div><strong>${existing ? 'Sửa Việc họ' : 'Thêm Việc họ'}</strong><span>Ghi việc chung của dòng họ</span></div>
+            <button type="button" class="event-editor-close" aria-label="Đóng">×</button>
+          </div>
+          <form class="event-editor-form">
+            <label>Tên Việc họ<input name="title" type="text" maxlength="120" required placeholder="Ví dụ: Họp họ đầu năm" value="${escapeHtml(existing?.title ?? '')}"></label>
+            <label>Ngày diễn ra<input name="date" type="date" required value="${escapeHtml(existing?.date ?? '')}"></label>
+            <label class="event-editor-wide">Địa điểm<input name="location" type="text" maxlength="160" placeholder="Ví dụ: Nhà thờ họ" value="${escapeHtml(existing?.location ?? '')}"></label>
+            <label class="event-editor-wide">Ghi chú<textarea name="note" maxlength="600" rows="3" placeholder="Nội dung chuẩn bị, giờ tập trung…">${escapeHtml(existing?.note ?? '')}</textarea></label>
+            <label class="event-editor-repeat event-editor-wide"><input name="repeatYearly" type="checkbox" ${existing?.repeatYearly ? 'checked' : ''}><span>Hằng năm</span></label>
+            <p class="event-editor-message event-editor-wide" role="alert"></p>
+            <div class="event-editor-actions event-editor-wide"><button type="button" class="event-editor-cancel">Trở lui</button><button type="submit" class="event-editor-save">${existing ? 'Lưu thay đổi' : 'Lưu Việc họ'}</button></div>
+          </form>
+        </div>`;
+      document.body.appendChild(overlay);
+      const close = () => overlay.remove();
+      overlay.querySelector('.event-editor-close')?.addEventListener('click', close);
+      overlay.querySelector('.event-editor-cancel')?.addEventListener('click', close);
+      overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
+      const form = overlay.querySelector<HTMLFormElement>('.event-editor-form');
+      form?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const message = form.querySelector<HTMLElement>('.event-editor-message');
+        const save = form.querySelector<HTMLButtonElement>('.event-editor-save');
+        const data = new FormData(form);
+        if (save) save.disabled = true;
+        if (message) message.textContent = 'Đang lưu…';
+        try {
+          const response = await fetch('/api/events/family', {
+            method: existing ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...(existing ? { id: existing.id } : {}),
+              title: String(data.get('title') ?? ''),
+              date: String(data.get('date') ?? ''),
+              location: String(data.get('location') ?? ''),
+              note: String(data.get('note') ?? ''),
+              repeatYearly: data.get('repeatYearly') === 'on',
+            }),
+          });
+          const result = await response.json() as { message?: string };
+          if (!response.ok) throw new Error(result.message || 'Không thể lưu Việc họ.');
+          close();
+          familyLoaded = false;
+          await loadFamilyEvents();
+          renderFamilyEvents();
+          installEventUi();
+        } catch (error) {
+          if (message) message.textContent = error instanceof Error ? error.message : 'Không thể lưu Việc họ.';
+          if (save) save.disabled = false;
+        }
+      });
+      window.setTimeout(() => overlay.querySelector<HTMLInputElement>('input[name="title"]')?.focus(), 20);
+    };
+
+    const deleteFamilyEvent = async (event: FamilyWorkEvent) => {
+      if (!window.confirm(`Xóa Việc họ “${event.title}”?`)) return;
+      const response = await fetch('/api/events/family', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: event.id }),
+      });
+      const result = await response.json() as { message?: string };
+      if (!response.ok) {
+        window.alert(result.message || 'Không thể xóa Việc họ.');
+        return;
+      }
+      familyLoaded = false;
+      await loadFamilyEvents();
+      renderFamilyEvents();
+      installEventUi();
+    };
+
+    const loadFamilyEvents = async () => {
+      if (familyLoaded) return;
+      if (familyLoading) return familyLoading;
+      familyLoading = (async () => {
+        try {
+          const response = await fetch('/api/events/family', { cache: 'no-store' });
+          if (!response.ok) throw new Error('Không tải được Việc họ.');
+          const result = await response.json() as { events?: FamilyWorkEvent[] };
+          familyEvents = Array.isArray(result.events) ? result.events : [];
+        } catch {
+          familyEvents = [];
+        } finally {
+          familyLoaded = true;
+          familyLoading = null;
+        }
+      })();
+      return familyLoading;
+    };
+
+    const renderFamilyEvents = () => {
+      const view = document.querySelector<HTMLElement>('.events-view');
+      if (!view) return;
+      let list = view.querySelector<HTMLElement>('.family-work-list');
+      if (!list) {
+        list = document.createElement('div');
+        list.className = 'family-work-list';
+        const tombList = view.querySelector('.tomb-sweeping-list');
+        const nativeList = view.querySelector('.events-list');
+        if (tombList) tombList.insertAdjacentElement('afterend', list);
+        else if (nativeList) nativeList.insertAdjacentElement('afterend', list);
+        else view.appendChild(list);
+      }
+      const signature = JSON.stringify(familyEvents);
+      if (list.dataset.signature === signature) return;
+      list.dataset.signature = signature;
+      list.innerHTML = '';
+      familyEvents.forEach((event) => {
+        const item = document.createElement('article');
+        item.className = 'family-event family-work family-work-item';
+        item.dataset.eventId = event.id;
+        item.innerHTML = `
+          <span class="family-work-mark" aria-hidden="true">HỌ</span>
+          <span class="event-copy"><em>Việc họ</em><strong>${escapeHtml(event.title)}</strong><small>${escapeHtml(event.location || 'Chưa ghi địa điểm')}${event.repeatYearly ? ' · Hằng năm' : ''}${event.note ? ` · ${escapeHtml(event.note)}` : ''}</small></span>
+          <time datetime="${escapeHtml(event.date)}">${escapeHtml(formatDate(event.date, event.repeatYearly))}</time>
+          <span class="family-work-actions"><button type="button" class="family-work-edit">Sửa</button><button type="button" class="family-work-delete">Xóa</button></span>`;
+        item.querySelector('.family-work-edit')?.addEventListener('click', () => openFamilyDialog(event));
+        item.querySelector('.family-work-delete')?.addEventListener('click', () => void deleteFamilyEvent(event));
+        list!.appendChild(item);
+      });
     };
 
     const applyHueWording = () => {
@@ -193,9 +346,8 @@ export default function EventsHueEnhancements() {
     const applyEventFilter = () => {
       const view = document.querySelector<HTMLElement>('.events-view');
       if (!view) return;
-      const events = [...view.querySelectorAll<HTMLElement>('.family-event')];
       let visible = 0;
-      events.forEach((event) => {
+      view.querySelectorAll<HTMLElement>('.family-event').forEach((event) => {
         const kind = eventKindOf(event);
         const show = activeFilter === 'all' || kind === activeFilter;
         event.hidden = !show;
@@ -208,19 +360,32 @@ export default function EventsHueEnhancements() {
         button.setAttribute('aria-pressed', String(selected));
       });
 
+      const toolbar = view.querySelector<HTMLElement>('.event-context-toolbar');
+      if (toolbar) {
+        const action = toolbar.querySelector<HTMLButtonElement>('.event-context-add');
+        const tombMode = activeFilter === 'tomb';
+        const familyMode = activeFilter === 'family';
+        toolbar.hidden = !tombMode && !familyMode;
+        if (action) {
+          action.dataset.action = tombMode ? 'tomb' : 'family';
+          action.textContent = tombMode ? '+ Chạp mộ' : '+ Việc họ';
+          action.setAttribute('aria-label', tombMode ? 'Thêm lịch Chạp mộ' : 'Thêm Việc họ');
+        }
+      }
+
       const empty = view.querySelector<HTMLElement>('.event-filter-empty');
       if (empty) {
         empty.hidden = visible > 0;
         if (activeFilter === 'tomb') {
           empty.innerHTML = '<strong>Chưa có ngày Chạp mộ được ghi</strong><span>Nhấn “+ Chạp mộ” để bổ sung lịch.</span>';
+        } else if (activeFilter === 'family') {
+          empty.innerHTML = '<strong>Chưa có Việc họ nào được ghi</strong><span>Nhấn “+ Việc họ” để bổ sung.</span>';
         } else if (activeFilter === 'memorial') {
           empty.innerHTML = '<strong>Chưa có ngày kỵ trong mục ni</strong><span>Bổ sung ngày kỵ trong hồ sơ người thân để hiện lịch.</span>';
         } else if (activeFilter === 'birthday') {
           empty.innerHTML = '<strong>Chưa có sinh nhật trong mục ni</strong><span>Bổ sung ngày sinh trong hồ sơ người thân để hiện lịch.</span>';
-        } else if (activeFilter === 'family') {
-          empty.innerHTML = '<strong>Chưa có việc họ nào được ghi</strong><span>Các việc chung của dòng họ sẽ được hiển thị tại mục ni.</span>';
         } else {
-          empty.innerHTML = '<strong>Chưa có sự kiện nào được ghi</strong><span>Bổ sung ngày sinh, ngày kỵ, Chạp mộ hoặc việc họ để theo dõi.</span>';
+          empty.innerHTML = '<strong>Chưa có sự kiện nào được ghi</strong><span>Bổ sung ngày sinh, ngày kỵ, Chạp mộ hoặc Việc họ để theo dõi.</span>';
         }
       }
     };
@@ -232,11 +397,11 @@ export default function EventsHueEnhancements() {
 
       const title = heading.querySelector<HTMLElement>('h2');
       if (title && isVietnameseUi() && title.textContent?.trim() !== 'Sự Kiện') title.textContent = 'Sự Kiện';
-      view.dataset.eventsEnhancer = '20261002-integrated-v4';
+      view.dataset.eventsEnhancer = '20261002-context-actions-v5';
 
       const counts = {
-        memorial: view.querySelectorAll('.family-event.memorial').length,
         birthday: view.querySelectorAll('.family-event.birthday').length,
+        memorial: view.querySelectorAll('.family-event.memorial').length,
         tomb: view.querySelectorAll('.family-event.tomb-sweeping,.family-event.tao-mo').length,
         family: view.querySelectorAll('.family-event.family-work').length,
       };
@@ -251,7 +416,7 @@ export default function EventsHueEnhancements() {
       }
 
       const filters: Array<[EventFilter, string, number]> = [
-        ['all', 'Tất cả', counts.memorial + counts.birthday + counts.tomb + counts.family],
+        ['all', 'Tất cả', counts.birthday + counts.memorial + counts.tomb + counts.family],
         ['birthday', 'Sinh nhật', counts.birthday],
         ['memorial', 'Ngày kỵ', counts.memorial],
         ['tomb', 'Chạp mộ', counts.tomb],
@@ -287,13 +452,18 @@ export default function EventsHueEnhancements() {
         if (!filter || !wanted.has(filter)) button.remove();
       });
 
-      let actionRow = view.querySelector<HTMLElement>('.event-chapa-toolbar');
-      if (!actionRow) {
-        actionRow = document.createElement('div');
-        actionRow.className = 'event-chapa-toolbar';
-        actionRow.innerHTML = '<div><strong>Chạp mộ</strong><span>Lịch chung của dòng họ</span></div><button type="button" class="event-chapa-add">+ Chạp mộ</button>';
-        actionRow.querySelector<HTMLButtonElement>('.event-chapa-add')?.addEventListener('click', openChapaDialog);
-        bar.insertAdjacentElement('afterend', actionRow);
+      let toolbar = view.querySelector<HTMLElement>('.event-context-toolbar');
+      if (!toolbar) {
+        toolbar = document.createElement('div');
+        toolbar.className = 'event-context-toolbar';
+        toolbar.hidden = true;
+        toolbar.innerHTML = '<button type="button" class="event-context-add"></button>';
+        toolbar.querySelector<HTMLButtonElement>('.event-context-add')?.addEventListener('click', (event) => {
+          const action = (event.currentTarget as HTMLButtonElement).dataset.action;
+          if (action === 'tomb') openChapaDialog();
+          else if (action === 'family') openFamilyDialog();
+        });
+        bar.insertAdjacentElement('afterend', toolbar);
       }
 
       let empty = view.querySelector<HTMLElement>('.event-filter-empty');
@@ -301,7 +471,7 @@ export default function EventsHueEnhancements() {
         empty = document.createElement('div');
         empty.className = 'event-filter-empty';
         empty.hidden = true;
-        actionRow.insertAdjacentElement('afterend', empty);
+        toolbar.insertAdjacentElement('afterend', empty);
       }
 
       applyEventFilter();
@@ -310,8 +480,12 @@ export default function EventsHueEnhancements() {
     const sync = () => {
       cancelAnimationFrame(syncFrame);
       syncFrame = requestAnimationFrame(() => {
+        if (!document.querySelector('.events-view')) return;
         applyHueWording();
-        installEventUi();
+        void loadFamilyEvents().then(() => {
+          renderFamilyEvents();
+          installEventUi();
+        });
       });
     };
 
@@ -325,21 +499,96 @@ export default function EventsHueEnhancements() {
       document.removeEventListener('change', sync, true);
       cancelAnimationFrame(syncFrame);
       clearFilterOrbit();
-      document.querySelector('.event-chapa-dialog')?.remove();
-      document.querySelectorAll('.event-filter-bar,.event-filter-empty,.event-chapa-toolbar').forEach((node) => node.remove());
+      closeEditor();
+      document.querySelectorAll('.event-filter-bar,.event-context-toolbar,.event-filter-empty,.family-work-list').forEach((node) => node.remove());
       document.querySelectorAll<HTMLElement>('.family-event').forEach((event) => { event.hidden = false; });
     };
   }, []);
 
   return <style>{`
-    .event-filter-bar{display:flex;gap:8px;padding:10px 24px 12px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid #d5a73a24;background:#45080638}.event-filter-bar::-webkit-scrollbar{display:none}
-    .event-filter-button{min-width:max-content;height:36px;display:inline-flex;align-items:center;gap:7px;padding:0 11px;border:1px solid #9e6c285c;border-radius:9px;background:#2d0504;color:#bfa98f;font-size:11px;position:relative;flex:0 0 auto}.event-filter-button small{min-width:18px;height:18px;display:grid;place-items:center;padding:0 4px;border-radius:999px;background:#ffffff0c;color:#9e846d;font-size:9px}.event-filter-button.selected{border-color:#e0b447;background:linear-gradient(100deg,#851a12,#5d0d09);color:#ffe08a;box-shadow:inset 0 -2px #e7bb4f,0 0 10px #ffd45e28}.event-filter-button.selected small{color:#f4d67e;background:#f6d56c14}
-    .event-chapa-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 24px 4px;padding:11px 12px;border:1px solid #b8873766;border-radius:12px;background:linear-gradient(110deg,#3e0705,#270403);box-shadow:inset 0 1px #f5d77c12}.event-chapa-toolbar strong{display:block;color:#f0d17a;font-family:var(--font-serif);font-size:13px}.event-chapa-toolbar span{display:block;margin-top:3px;color:#aa9074;font-size:9px}.event-chapa-add{flex:0 0 auto;height:36px;padding:0 12px;border:1px solid #e0b447;border-radius:9px;background:linear-gradient(100deg,#851a12,#5d0d09);color:#ffe08a;font-size:11px;font-weight:800;box-shadow:inset 0 -2px #e7bb4f,0 0 10px #ffd45e28}.event-chapa-add:active{transform:scale(.97)}
-    .event-filter-empty{margin:18px 24px;padding:18px;border:1px dashed #b88737;border-radius:13px;background:#3d0705aa;text-align:center}.event-filter-empty[hidden]{display:none}.event-filter-empty strong{display:block;color:#f0d17a;font-family:var(--font-serif);font-size:15px}.event-filter-empty span{display:block;margin-top:5px;color:#bba183;font-size:11px;line-height:1.5}.family-event[hidden]{display:none!important}
-    .event-filter-gold-trace{position:fixed;z-index:2147483002;pointer-events:none;box-sizing:border-box;overflow:visible;border:1px solid rgba(239,190,69,.32);box-shadow:0 0 12px rgba(255,210,74,.68),inset 0 0 7px rgba(255,225,125,.18)}.event-filter-gold-segment{position:absolute;display:block;pointer-events:none;opacity:0;background:linear-gradient(90deg,transparent 0%,#ffd55d 14%,#fffbd8 50%,#ffd04a 84%,transparent 100%);filter:drop-shadow(0 0 4px #ffe38a) drop-shadow(0 0 8px #ffc62f)}.event-filter-gold-segment.top{top:-1px;left:7px;width:calc(100% - 14px);height:3px;transform:scaleX(0);transform-origin:left center;animation:event-filter-gold-x .16s linear 0s forwards}.event-filter-gold-segment.right{top:7px;right:-1px;width:3px;height:calc(100% - 14px);transform:scaleY(0);transform-origin:center top;animation:event-filter-gold-y .16s linear .16s forwards;background:linear-gradient(180deg,transparent 0%,#ffd55d 14%,#fffbd8 50%,#ffd04a 84%,transparent 100%)}.event-filter-gold-segment.bottom{right:7px;bottom:-1px;width:calc(100% - 14px);height:3px;transform:scaleX(0);transform-origin:right center;animation:event-filter-gold-x .16s linear .32s forwards}.event-filter-gold-segment.left{left:-1px;bottom:7px;width:3px;height:calc(100% - 14px);transform:scaleY(0);transform-origin:center bottom;animation:event-filter-gold-y .16s linear .48s forwards;background:linear-gradient(180deg,transparent 0%,#ffd55d 14%,#fffbd8 50%,#ffd04a 84%,transparent 100%)}@keyframes event-filter-gold-x{0%{transform:scaleX(0);opacity:0}8%{opacity:1}92%{opacity:1}100%{transform:scaleX(1);opacity:1}}@keyframes event-filter-gold-y{0%{transform:scaleY(0);opacity:0}8%{opacity:1}92%{opacity:1}100%{transform:scaleY(1);opacity:1}}
-    .event-chapa-dialog{position:fixed;inset:0;z-index:2147483200;display:grid;place-items:center;padding:18px;background:#170403c2;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}.event-chapa-card{width:min(520px,100%);max-height:90vh;overflow:auto;border:1px solid #c39034;border-radius:17px;background:linear-gradient(180deg,#4b0a07,#280403);box-shadow:0 24px 70px #0009,inset 0 1px #f4d77a20}.event-chapa-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 17px 13px;border-bottom:1px solid #d0a13c32}.event-chapa-head strong{display:block;color:#f4d57e;font-family:var(--font-serif);font-size:17px}.event-chapa-head span{display:block;margin-top:3px;color:#b99d7c;font-size:10px}.event-chapa-close{width:34px;height:34px;border:1px solid #a779325a;border-radius:50%;background:#2c0504;color:#d7ba8f;font-size:22px}.event-chapa-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 17px 18px}.event-chapa-form label{display:grid;gap:6px;color:#c7a982;font-size:10px}.event-chapa-form input[type="text"],.event-chapa-form input[type="date"],.event-chapa-form textarea{width:100%;border:1px solid #9f71365c;border-radius:9px;background:#210302;color:#f4dfb2;padding:0 10px;outline:none;font:inherit;font-size:12px}.event-chapa-form input[type="text"],.event-chapa-form input[type="date"]{height:40px}.event-chapa-form textarea{min-height:76px;padding-top:9px;resize:vertical}.event-chapa-note,.event-chapa-repeat,.event-chapa-message,.event-chapa-actions{grid-column:1/-1}.event-chapa-repeat{display:flex!important;align-items:center;gap:8px!important}.event-chapa-repeat input{accent-color:#d8aa3f}.event-chapa-message{min-height:16px;margin:0;color:#efb789;font-size:10px}.event-chapa-actions{display:flex;justify-content:flex-end;gap:8px}.event-chapa-actions button{height:36px;padding:0 13px;border-radius:9px;font-size:11px}.event-chapa-cancel{border:1px solid #91663166;background:#290403;color:#c2a281}.event-chapa-save{border:1px solid #d4a43a;background:linear-gradient(100deg,#8a1b13,#5d0d09);color:#ffe28c}.event-chapa-save:disabled{opacity:.55}
-    .event-filter-bar .tomb-event-add,.event-family-filter-v2,.chapa-v2-toolbar,.tomb-event-action-proxy{display:none!important}
-    @media(max-width:740px){.event-filter-bar{padding:9px 14px 11px;gap:7px}.event-filter-button{height:34px;padding:0 10px;font-size:10px}.event-filter-button small{display:none}.event-chapa-toolbar{margin:10px 14px 4px;padding:10px}.event-chapa-add{height:34px;padding:0 10px;font-size:10px}.event-filter-empty{margin:14px}.event-chapa-dialog{align-items:end;padding:0}.event-chapa-card{width:100%;max-height:88vh;border-radius:18px 18px 0 0;border-bottom:0}.event-chapa-form{grid-template-columns:1fr;gap:10px}.event-chapa-note,.event-chapa-repeat,.event-chapa-message,.event-chapa-actions{grid-column:1}}
-    .mode-mobile .event-filter-button small{display:none}.mode-mobile .event-chapa-toolbar{margin:10px 14px 4px;padding:10px}.mode-mobile .event-chapa-dialog{align-items:end;padding:0}.mode-mobile .event-chapa-card{width:100%;max-height:88vh;border-radius:18px 18px 0 0;border-bottom:0}.mode-mobile .event-chapa-form{grid-template-columns:1fr;gap:10px}
+    .event-filter-bar {
+      display:flex;gap:8px;padding:10px 24px 12px;overflow-x:auto;scrollbar-width:none;
+      border-bottom:1px solid #d5a73a24;background:#45080638;
+    }
+    .event-filter-bar::-webkit-scrollbar{display:none}
+    .event-filter-button {
+      min-width:max-content;height:36px;display:inline-flex;align-items:center;gap:7px;padding:0 11px;
+      border:1px solid #9e6c285c;border-radius:9px;background:#2d0504;color:#bfa98f;font-size:11px;
+      position:relative;flex:0 0 auto;transition:border-color .18s ease,color .18s ease,background .18s ease,box-shadow .18s ease;
+    }
+    .event-filter-button small{min-width:18px;height:18px;display:grid;place-items:center;padding:0 4px;border-radius:999px;background:#ffffff0c;color:#9e846d;font-size:9px}
+    .event-filter-button.selected{border-color:#e0b447;background:linear-gradient(100deg,#851a12,#5d0d09);color:#ffe08a;box-shadow:inset 0 -2px #e7bb4f,0 0 10px #ffd45e28}
+    .event-filter-button.selected small{color:#f4d67e;background:#f6d56c14}
+
+    .event-context-toolbar{display:flex;justify-content:flex-end;padding:10px 24px 2px;background:#45080618}
+    .event-context-toolbar[hidden]{display:none!important}
+    .event-context-add{height:34px;padding:0 13px;border:1px solid #e0b447;border-radius:9px;background:linear-gradient(100deg,#851a12,#5d0d09);color:#ffe08a;font-size:11px;font-weight:800;box-shadow:inset 0 -2px #e7bb4f,0 0 10px #ffd45e28}
+    .event-context-add:active{transform:scale(.97)}
+    .event-filter-bar .tomb-event-add{display:none!important}
+
+    .event-filter-empty{margin:14px 24px 18px;padding:18px;border:1px dashed #b88737;border-radius:13px;background:#3d0705aa;text-align:center}
+    .event-filter-empty[hidden]{display:none}
+    .event-filter-empty strong{display:block;color:#f0d17a;font-family:var(--font-serif);font-size:15px}
+    .event-filter-empty span{display:block;margin-top:5px;color:#bba183;font-size:11px;line-height:1.5}
+    .family-event[hidden]{display:none!important}
+
+    .family-work-list{display:grid}
+    .family-work-item{position:relative}
+    .family-work-mark{width:36px;height:36px;display:grid;place-items:center;flex:0 0 auto;border:1px solid #c89739;border-radius:50%;background:#49100b;color:#f0cf72;font-family:var(--font-serif);font-size:11px;font-weight:800}
+    .family-work-actions{display:inline-flex;gap:5px;margin-left:8px}
+    .family-work-actions button{height:28px;padding:0 8px;border:1px solid #9e6c2855;border-radius:7px;background:#2e0504;color:#c9ad87;font-size:9px}
+
+    .event-editor-dialog{position:fixed;inset:0;z-index:2147483200;display:grid;place-items:center;padding:18px;background:#170403c2;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+    .event-editor-card{width:min(520px,100%);max-height:90vh;overflow:auto;border:1px solid #c39034;border-radius:17px;background:linear-gradient(180deg,#4b0a07,#280403);box-shadow:0 24px 70px #0009,inset 0 1px #f4d77a20}
+    .event-editor-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 17px 13px;border-bottom:1px solid #d0a13c32}
+    .event-editor-head strong{display:block;color:#f4d57e;font-family:var(--font-serif);font-size:17px}
+    .event-editor-head span{display:block;margin-top:3px;color:#b99d7c;font-size:10px}
+    .event-editor-close{width:34px;height:34px;border:1px solid #a779325a;border-radius:50%;background:#2c0504;color:#d7ba8f;font-size:22px;line-height:1}
+    .event-editor-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px 17px 18px}
+    .event-editor-form label{display:grid;gap:6px;color:#c7a982;font-size:10px}
+    .event-editor-form input[type="text"],.event-editor-form input[type="date"],.event-editor-form textarea{width:100%;border:1px solid #9f71365c;border-radius:9px;background:#210302;color:#f4dfb2;padding:0 10px;outline:none;font:inherit;font-size:12px}
+    .event-editor-form input[type="text"],.event-editor-form input[type="date"]{height:40px}
+    .event-editor-form textarea{min-height:76px;padding-top:9px;resize:vertical}
+    .event-editor-wide{grid-column:1 / -1}
+    .event-editor-repeat{display:flex!important;align-items:center;gap:8px!important}
+    .event-editor-repeat input{accent-color:#d8aa3f}
+    .event-editor-message{min-height:16px;margin:0;color:#efb789;font-size:10px}
+    .event-editor-actions{display:flex;justify-content:flex-end;gap:8px}
+    .event-editor-actions button{height:36px;padding:0 13px;border-radius:9px;font-size:11px}
+    .event-editor-cancel{border:1px solid #91663166;background:#290403;color:#c2a281}
+    .event-editor-save{border:1px solid #d4a43a;background:linear-gradient(100deg,#8a1b13,#5d0d09);color:#ffe28c}
+    .event-editor-save:disabled{opacity:.55}
+
+    .event-filter-gold-trace{position:fixed;z-index:2147483002;pointer-events:none;box-sizing:border-box;overflow:visible;border:1px solid rgba(239,190,69,.32);box-shadow:0 0 12px rgba(255,210,74,.68),inset 0 0 7px rgba(255,225,125,.18)}
+    .event-filter-gold-segment{position:absolute;display:block;pointer-events:none;opacity:0;background:linear-gradient(90deg,transparent 0%,#ffd55d 14%,#fffbd8 50%,#ffd04a 84%,transparent 100%);filter:drop-shadow(0 0 4px #ffe38a) drop-shadow(0 0 8px #ffc62f)}
+    .event-filter-gold-segment.top{top:-1px;left:7px;width:calc(100% - 14px);height:3px;transform:scaleX(0);transform-origin:left center;animation:event-gold-x .16s linear 0s forwards}
+    .event-filter-gold-segment.right{top:7px;right:-1px;width:3px;height:calc(100% - 14px);transform:scaleY(0);transform-origin:center top;animation:event-gold-y .16s linear .16s forwards;background:linear-gradient(180deg,transparent 0%,#ffd55d 14%,#fffbd8 50%,#ffd04a 84%,transparent 100%)}
+    .event-filter-gold-segment.bottom{right:7px;bottom:-1px;width:calc(100% - 14px);height:3px;transform:scaleX(0);transform-origin:right center;animation:event-gold-x .16s linear .32s forwards}
+    .event-filter-gold-segment.left{left:-1px;bottom:7px;width:3px;height:calc(100% - 14px);transform:scaleY(0);transform-origin:center bottom;animation:event-gold-y .16s linear .48s forwards;background:linear-gradient(180deg,transparent 0%,#ffd55d 14%,#fffbd8 50%,#ffd04a 84%,transparent 100%)}
+    @keyframes event-gold-x{0%{transform:scaleX(0);opacity:0}8%{opacity:1}100%{transform:scaleX(1);opacity:1}}
+    @keyframes event-gold-y{0%{transform:scaleY(0);opacity:0}8%{opacity:1}100%{transform:scaleY(1);opacity:1}}
+
+    @media(max-width:740px){
+      .event-filter-bar{padding:9px 14px 11px;gap:7px}
+      .event-filter-button{height:34px;padding:0 10px;font-size:10px}
+      .event-filter-button small{display:none}
+      .event-context-toolbar{padding:9px 14px 2px}
+      .event-context-add{height:34px;padding:0 11px;font-size:10px}
+      .event-filter-empty{margin:12px 14px 16px}
+      .family-work-mark{width:32px;height:32px;font-size:10px}
+      .family-work-actions{width:100%;margin:6px 0 0;justify-content:flex-end}
+      .event-editor-dialog{align-items:end;padding:0}
+      .event-editor-card{width:100%;max-height:88vh;border-radius:18px 18px 0 0;border-bottom:0}
+      .event-editor-form{grid-template-columns:1fr;gap:10px}
+      .event-editor-wide{grid-column:1}
+    }
+    .mode-mobile .event-filter-bar{padding:9px 14px 11px;gap:7px}
+    .mode-mobile .event-filter-button{height:34px;padding:0 10px;font-size:10px}
+    .mode-mobile .event-filter-button small{display:none}
+    .mode-mobile .event-context-toolbar{padding:9px 14px 2px}
+    .mode-mobile .event-editor-dialog{align-items:end;padding:0}
+    .mode-mobile .event-editor-card{width:100%;max-height:88vh;border-radius:18px 18px 0 0;border-bottom:0}
+    .mode-mobile .event-editor-form{grid-template-columns:1fr;gap:10px}
+    .mode-mobile .event-editor-wide{grid-column:1}
   `}</style>;
 }
