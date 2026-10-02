@@ -62,11 +62,10 @@ export default function GenerationFilterInfo() {
           <strong>Cách đọc cây gia phả</strong>
           <button type="button" class="generation-info-close" aria-label="Đóng giải thích">×</button>
         </div>
-        <p><b>Tất cả các đời:</b> hệ thống cố gắng hiển thị đầy đủ cây theo từng nhánh cha – con. Đường dọc là trục của một nhánh; gạch ngang nối từ trục vào ô thành viên để cho biết người đó thuộc nhánh nào.</p>
-        <p><b>Nếu đang xem đủ 5 đời mà vẫn thiếu một gạch nối:</b> không nên hiểu ngay là hai người không có quan hệ. Nếu cả cha/mẹ và người con đều đang hiện nhưng đoạn nối bị thiếu, đó có thể là cách bố trí hoặc đường nối chưa được vẽ lại đúng vị trí. Quan hệ nên được đối chiếu bằng dòng “Con của …” trên ô thành viên.</p>
-        <p><b>Khi xem riêng một đời:</b> cha/mẹ hoặc con ở đời khác bị ẩn. Vì đầu kia của quan hệ không còn trên màn hình nên một số đường nối sẽ chủ động không hiện đầy đủ. Đây là cách hiển thị theo bộ lọc, không phải mất dữ liệu.</p>
-        <p><b>Vì sao có ô sát nhau, có ô cách xa?</b> khoảng cách chỉ phục vụ bố cục. Hệ thống giữ các thành viên cùng nhánh gần nhau, chừa chỗ cho anh/chị/em, dâu/rể và các nhánh con bên dưới, đồng thời tránh các ô đè lên nhau. Vì vậy hai ô xa nhau không có nghĩa là quan hệ xa hơn; hai ô sát nhau cũng không có nghĩa là quan hệ gần hơn.</p>
-        <p class="generation-info-emphasis"><b>Cách kiểm tra chắc nhất:</b> xem tên cha/mẹ ở dòng “Con của …”. Nếu cần nhìn toàn bộ mối nối giữa các thế hệ, chọn “Tất cả các đời”.</p>
+        <p><b>Tất cả các đời:</b> mọi quan hệ cha – con có trong dữ liệu phải có đường nhánh nối tương ứng. Nếu cha/mẹ và người con đều đang hiện mà đường nối bị thiếu thì đó là lỗi hiển thị cần sửa, không phải đặc tính bình thường của cây.</p>
+        <p><b>Xem riêng một đời:</b> các đời khác bị ẩn. Khi cha/mẹ hoặc con thuộc đời khác không còn trên màn hình, đường nối giữa hai người đó cũng không thể hiển thị đầy đủ. Dữ liệu quan hệ vẫn được giữ nguyên.</p>
+        <p><b>Ô sát nhau hoặc cách xa:</b> khoảng cách chỉ do thuật toán bố trí chừa chỗ cho các nhánh, anh/chị/em, dâu/rể và hậu duệ, đồng thời tránh các ô đè lên nhau. Khoảng cách giữa hai ô không biểu thị mức độ quan hệ.</p>
+        <p class="generation-info-emphasis"><b>Cách kiểm tra chắc nhất:</b> xem dòng “Con của …” trên ô thành viên. Dòng này phải khớp với nhánh cha – con trong dữ liệu; khi xem “Tất cả các đời”, đường nối cũng phải khớp theo quan hệ đó.</p>
       `;
 
       const setOpen = (open: boolean) => {
