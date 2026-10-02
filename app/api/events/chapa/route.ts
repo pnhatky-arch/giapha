@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ensureAuthSchema, getDatabase, writeAuditLog } from '@/db';
+import { getDatabase, writeAuditLog } from '@/db';
 import { getInternalUser } from '@/app/internal-auth';
 
 const SETTINGS_KEY = 'tomb_sweeping_events';
@@ -43,7 +43,6 @@ function isStoredEvent(value: unknown): value is TombSweepingEvent {
 }
 
 async function readEvents(): Promise<TombSweepingEvent[]> {
-  await ensureAuthSchema();
   const row = await getDatabase().prepare('SELECT value FROM app_settings WHERE key = ?').bind(SETTINGS_KEY).first<{ value: string }>();
   if (!row?.value) return [];
   try {
@@ -82,9 +81,13 @@ function validateInput(body: unknown) {
 }
 
 export async function GET() {
-  const user = await getInternalUser();
-  const events = await readEvents();
-  return NextResponse.json({ events, canEdit: Boolean(user) }, { headers: { 'Cache-Control': 'no-store' } });
+  try {
+    const user = await getInternalUser();
+    const events = await readEvents();
+    return NextResponse.json({ events, canEdit: Boolean(user) }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
+  } catch {
+    return NextResponse.json({ events: [], canEdit: false }, { headers: { 'Cache-Control': 'no-store, max-age=0' } });
+  }
 }
 
 export async function POST(request: Request) {
