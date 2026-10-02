@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   initialFamily,
   flattenFamily,
@@ -7,6 +9,7 @@ import {
 import {
   sampleFamilyWorkEvents,
   sampleMaterialItems,
+  sampleMaterialMedia,
   sampleTombSweepingEvents,
 } from '../lib/sample-fixtures.ts';
 
@@ -91,6 +94,17 @@ for (const item of sampleMaterialItems.filter((entry) => entry.kind === 'link'))
   assert(url.protocol === 'https:' || url.protocol === 'http:', `${item.title} contains an invalid link`);
 }
 
+assert(sampleMaterialMedia.length >= 4, `need at least 4 illustrated sample attachments, got ${sampleMaterialMedia.length}`);
+assert(new Set(sampleMaterialMedia.map((media) => media.key)).size === sampleMaterialMedia.length, 'sample media keys must be unique');
+for (const media of sampleMaterialMedia) {
+  assert(media.key.startsWith('sample-static/'), `${media.name} must use the built-in sample-static namespace`);
+  assert(media.type.startsWith('image/'), `${media.name} must be an image fixture`);
+  assert(materialsById.has(media.itemId), `${media.name} references missing material ${media.itemId}`);
+  assert(media.url.startsWith('/sample-materials/'), `${media.name} must use a local static asset URL`);
+  const publicPath = resolve(process.cwd(), 'public', media.url.replace(/^\//, '').replace(/^sample-materials\//, 'sample-materials/'));
+  assert(existsSync(publicPath), `${media.name} static asset is missing at ${publicPath}`);
+}
+
 console.log([
   'Sample fixture OK',
   `${people.length} members / ${SAMPLE_GENERATION_COUNTS.length} generations`,
@@ -99,4 +113,5 @@ console.log([
   `${tombEvents.length} Chạp mộ`,
   `${familyWorkEvents.length} Việc họ`,
   `${sampleMaterialItems.length} materials`,
+  `${sampleMaterialMedia.length} illustrated media`,
 ].join(' · '));
