@@ -41,9 +41,19 @@ has('app/api/events/media/route.ts', "file.type === 'image/svg+xml'", 'event med
 
 // Guest/event UI guards and media UI must be mounted in the real page tree.
 const page = read('app/page.tsx');
-for (const component of ['EventsMediaEnhancements', 'EventsEditPermissionFix', 'EventsCardLayoutFix', 'TombSweepingEvents', 'SystemBackupEnhancements']) {
+for (const component of ['EventsMediaEnhancements', 'EventsEditPermissionFix', 'EventsCardLayoutFix', 'TombSweepingEvents', 'SystemBackupEnhancements', 'DynamicLanguageData']) {
   assert(page.includes(`<${component}`), `app/page.tsx must mount ${component}`);
 }
+
+// Newly created or edited descriptive data must follow the active language without
+// storing translated copies in genealogy data. Workers AI is the translation fallback
+// for values that are not part of the static i18n dictionary.
+has('app/api/translate/route.ts', "@cf/meta/m2m100-1.2b", 'dynamic translation API must use the translation model');
+has('app/api/translate/route.ts', "source_lang: SOURCE_LANGUAGE", 'dynamic translation must preserve Vietnamese as canonical source data');
+has('scripts/patch-wrangler-media.mjs', "config.ai = { binding: 'AI' }", 'generated Worker config must retain the Workers AI binding');
+has('wrangler.production.jsonc', '"binding": "AI"', 'production config must expose the Workers AI binding');
+has('components/dynamic-language-data.tsx', "fetch('/api/translate'", 'dynamic language client must translate uncatalogued values');
+has('components/dynamic-language-data.tsx', 'MutationObserver', 'dynamic language client must react to newly rendered or edited data');
 
 // Deleting/switching genealogy modes must reset dependent events, materials and media.
 has('app/api/family/route.ts', 'clearAllGenealogyData', 'family delete must clear dependent data');
@@ -64,4 +74,4 @@ lacks('app/api/system-backup/route.ts', 'FROM sessions', 'system backup must not
 has('scripts/validate-sample-data.mjs', 'SAMPLE_MEMBER_COUNT', 'sample fixture validator must verify member count');
 has('scripts/validate-sample-data.mjs', "=== 6", 'sample fixture validator must enforce 6 generations');
 
-console.log('System contracts OK · secrets · auth · audit · D1 media · events · permissions · reset · backup');
+console.log('System contracts OK · secrets · auth · audit · D1 media · events · permissions · dynamic i18n · reset · backup');
