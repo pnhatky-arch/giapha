@@ -34,7 +34,7 @@ export async function writeAuditLog(entry: { actorId?: string; actorUsername: st
 }
 
 const DEFAULT_ADMIN_USERNAME = 'devphamgia';
-const DEFAULT_ADMIN_SEED_VERSION = 'default_admin_v1';
+const DEFAULT_ADMIN_SEED_VERSION = 'default_admin_v2';
 const ALL_ADMIN_PERMISSIONS = JSON.stringify(['manage_accounts', 'project_name', 'generations', 'legends', 'menus', 'notifications']);
 const PASSWORD_ITERATIONS = 100_000;
 
