@@ -2,36 +2,19 @@ import { NextResponse } from 'next/server';
 import { getDatabase, writeAuditLog } from '@/db';
 import { getInternalUser } from '@/app/internal-auth';
 import { getFamilyDataMode } from '@/lib/family-data-mode';
-import { getMaterialMediaBucket, isMaterialMediaKey, MATERIAL_MEDIA_PREFIX, materialMediaPrefix } from '@/lib/material-media';
+import {
+  deleteMaterialMediaRecord,
+  getMaterialMediaMeta,
+  isMaterialMediaKey,
+  listMaterialMedia,
+  parseMaterialMediaKey,
+  putMaterialMedia,
+  readMaterialMediaBytes,
+} from '@/lib/material-media';
 import { sampleMaterialMedia } from '@/lib/sample-fixtures';
 
-type MediaRecord = {
-  key: string;
-  itemId: string;
-  name: string;
-  type: string;
-  size: number;
-  uploadedAt: number;
-  uploadedBy: string;
-  url: string;
-};
-
-function cleanFileName(value: string) {
-  const name = value.trim().slice(0, 180) || 'media';
-  return name.replace(/[\\/\u0000-\u001f\u007f]+/g, '-');
-}
-
-function mediaUrl(key: string) {
-  return `/api/materials/media?key=${encodeURIComponent(key)}`;
-}
-
-function itemIdFromKey(key: string) {
-  if (!key.startsWith(MATERIAL_MEDIA_PREFIX)) return '';
-  return key.slice(MATERIAL_MEDIA_PREFIX.length).split('/')[0] ?? '';
-}
-
 function parseRange(header: string | null, size: number) {
-  if (!header) return null;
+  if (!header || size <= 0) return null;
   const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
   if (!match) return null;
   let start = match[1] ? Number(match[1]) : NaN;
@@ -45,71 +28,38 @@ function parseRange(header: string | null, size: number) {
     end = Number.isNaN(end) ? size - 1 : Math.min(end, size - 1);
   }
   if (start < 0 || start >= size || end < start) return null;
-  return { offset: start, length: end - start + 1, start, end };
+  return { start, end };
 }
 
-async function materialExists(itemId: string) {
-  const row = await getDatabase().prepare('SELECT id FROM material_items WHERE id = ?').bind(itemId).first<{ id: string }>();
+async function materialExists(itemId: string, sampleMode: boolean) {
+  const scope = sampleMode ? "id LIKE 'sample-%'" : "id NOT LIKE 'sample-%'";
+  const row = await getDatabase().prepare(`SELECT id FROM material_items WHERE id = ? AND ${scope}`)
+    .bind(itemId).first<{ id: string }>();
   return Boolean(row?.id);
-}
-
-async function listMedia(itemId?: string) {
-  const bucket = getMaterialMediaBucket();
-  const prefix = itemId ? materialMediaPrefix(itemId) : MATERIAL_MEDIA_PREFIX;
-  const records: MediaRecord[] = [];
-  let cursor: string | undefined;
-  do {
-    const page = await bucket.list({ prefix, cursor, limit: 1000 });
-    for (const listed of page.objects) {
-      const head = await bucket.head(listed.key);
-      if (!head) continue;
-      const ownerItemId = itemIdFromKey(listed.key);
-      const type = head.httpMetadata?.contentType ?? head.customMetadata?.type ?? 'application/octet-stream';
-      records.push({
-        key: listed.key,
-        itemId: ownerItemId,
-        name: head.customMetadata?.name ?? listed.key.split('/').at(-1) ?? 'media',
-        type,
-        size: head.size,
-        uploadedAt: Number(head.customMetadata?.uploadedAt ?? head.uploaded.getTime()),
-        uploadedBy: head.customMetadata?.uploadedBy ?? '',
-        url: mediaUrl(listed.key),
-      });
-    }
-    cursor = page.truncated ? page.cursor : undefined;
-  } while (cursor);
-  records.sort((left, right) => left.uploadedAt - right.uploadedAt);
-  return records;
 }
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const key = url.searchParams.get('key');
   if (key) {
-    try {
-      if (!isMaterialMediaKey(key)) return new Response('Not found', { status: 404 });
-      const bucket = getMaterialMediaBucket();
-      const head = await bucket.head(key);
-      if (!head) return new Response('Not found', { status: 404 });
-      const range = parseRange(request.headers.get('range'), head.size);
-      const object = await bucket.get(key, range ? { range: { offset: range.offset, length: range.length } } : undefined);
-      if (!object) return new Response('Not found', { status: 404 });
-      const headers = new Headers();
-      object.writeHttpMetadata(headers);
-      headers.set('ETag', object.httpEtag);
-      headers.set('Accept-Ranges', 'bytes');
-      headers.set('Cache-Control', 'private, max-age=3600');
-      headers.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(head.customMetadata?.name ?? 'media')}`);
-      if (range) {
-        headers.set('Content-Range', `bytes ${range.start}-${range.end}/${head.size}`);
-        headers.set('Content-Length', String(range.length));
-        return new Response(object.body, { status: 206, headers });
-      }
-      headers.set('Content-Length', String(head.size));
-      return new Response(object.body, { headers });
-    } catch {
-      return new Response('Not found', { status: 404 });
+    if (!isMaterialMediaKey(key)) return new Response('Not found', { status: 404 });
+    const meta = await getMaterialMediaMeta(key);
+    if (!meta) return new Response('Not found', { status: 404 });
+    const range = parseRange(request.headers.get('range'), meta.size);
+    const payload = await readMaterialMediaBytes(key, range?.start ?? 0, range?.end);
+    if (!payload) return new Response('Not found', { status: 404 });
+
+    const headers = new Headers();
+    headers.set('Content-Type', meta.type || 'application/octet-stream');
+    headers.set('Accept-Ranges', 'bytes');
+    headers.set('Cache-Control', 'private, max-age=3600');
+    headers.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(meta.name)}`);
+    headers.set('Content-Length', String(payload.bytes.byteLength));
+    if (range) {
+      headers.set('Content-Range', `bytes ${payload.start}-${payload.end}/${meta.size}`);
+      return new Response(payload.bytes, { status: 206, headers });
     }
+    return new Response(payload.bytes, { headers });
   }
 
   const itemId = url.searchParams.get('itemId')?.trim() || undefined;
@@ -119,22 +69,16 @@ export async function GET(request: Request) {
     : [];
 
   try {
-    const stored = await listMedia(itemId);
+    const stored = await listMaterialMedia(itemId);
     return NextResponse.json(
-      { media: [...builtIn, ...stored], storageAvailable: true },
+      { media: [...builtIn, ...stored], storageAvailable: true, storage: 'd1-chunked' },
       { headers: { 'Cache-Control': 'no-store, max-age=0' } },
     );
-  } catch (error) {
-    if (sampleMode) {
-      return NextResponse.json(
-        { media: builtIn, storageAvailable: false, message: 'Đang dùng ảnh minh họa tích hợp của bộ dữ liệu thử nghiệm.' },
-        { headers: { 'Cache-Control': 'no-store, max-age=0' } },
-      );
-    }
-    const message = error instanceof Error && error.message.includes('MEDIA')
-      ? 'Kho ảnh/video R2 chưa được cấu hình.'
-      : 'Không thể tải ảnh/video lúc này.';
-    return NextResponse.json({ message, media: [], storageAvailable: false }, { status: 503, headers: { 'Cache-Control': 'no-store, max-age=0' } });
+  } catch {
+    return NextResponse.json(
+      { message: 'Không thể tải ảnh/video lúc này.', media: builtIn, storageAvailable: false },
+      { status: 503, headers: { 'Cache-Control': 'no-store, max-age=0' } },
+    );
   }
 }
 
@@ -146,26 +90,19 @@ export async function POST(request: Request) {
   try { form = await request.formData(); } catch { return NextResponse.json({ message: 'Dữ liệu tải lên không hợp lệ.' }, { status: 400 }); }
   const itemId = String(form.get('itemId') ?? '').trim();
   const file = form.get('file');
-  if (!itemId || !(await materialExists(itemId))) return NextResponse.json({ message: 'Tư liệu không còn tồn tại.' }, { status: 404 });
+  const sampleMode = (await getFamilyDataMode()) === 'sample';
+  if (!itemId || !(await materialExists(itemId, sampleMode))) return NextResponse.json({ message: 'Tư liệu không còn tồn tại trong bộ dữ liệu hiện tại.' }, { status: 404 });
   if (!(file instanceof File) || file.size <= 0) return NextResponse.json({ message: 'Chưa chọn ảnh hoặc video.' }, { status: 400 });
   if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) return NextResponse.json({ message: 'Chỉ hỗ trợ tệp hình ảnh hoặc video.' }, { status: 400 });
+  if (file.type === 'image/svg+xml') return NextResponse.json({ message: 'Không hỗ trợ SVG tải lên. Hãy dùng PNG, JPG, WEBP hoặc ảnh từ máy.' }, { status: 400 });
 
   try {
-    const bucket = getMaterialMediaBucket();
-    const name = cleanFileName(file.name);
-    const key = `${materialMediaPrefix(itemId)}${crypto.randomUUID()}-${name}`;
-    const uploadedAt = Date.now();
-    await bucket.put(key, file.stream(), {
-      httpMetadata: { contentType: file.type || 'application/octet-stream', cacheControl: 'private, max-age=31536000' },
-      customMetadata: { name, type: file.type || 'application/octet-stream', uploadedAt: String(uploadedAt), uploadedBy: user.username },
-    });
-    await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Thêm media tư liệu', entity: 'Tư liệu gia phả', details: `Đã thêm “${name}” vào tư liệu ${itemId}` });
-    return NextResponse.json({ media: { key, itemId, name, type: file.type, size: file.size, uploadedAt, uploadedBy: user.username, url: mediaUrl(key) } });
+    const media = await putMaterialMedia({ itemId, file, uploadedBy: user.username, updatedById: user.id });
+    await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Thêm media tư liệu', entity: 'Tư liệu gia phả', details: `Đã thêm “${media.name}” vào tư liệu ${itemId}` });
+    return NextResponse.json({ media });
   } catch (error) {
-    const message = error instanceof Error && error.message.includes('MEDIA')
-      ? 'Kho ảnh/video R2 chưa được cấu hình.'
-      : 'Không thể tải ảnh/video lên.';
-    return NextResponse.json({ message }, { status: 503 });
+    console.error('Material media upload failed', error instanceof Error ? error.message : error);
+    return NextResponse.json({ message: 'Không thể lưu ảnh/video vào D1 lúc này.' }, { status: 500 });
   }
 }
 
@@ -174,20 +111,18 @@ export async function DELETE(request: Request) {
   if (!user) return NextResponse.json({ message: 'Cần đăng nhập bằng tài khoản nội bộ để xóa ảnh/video.' }, { status: 401 });
   const body = await request.json().catch(() => null) as { key?: unknown; itemId?: unknown } | null;
   if (!body || typeof body.key !== 'string' || typeof body.itemId !== 'string') return NextResponse.json({ message: 'Thiếu ảnh/video cần xóa.' }, { status: 400 });
-  const key = body.key;
-  const itemId = body.itemId;
-  if (!isMaterialMediaKey(key) || !key.startsWith(materialMediaPrefix(itemId))) return NextResponse.json({ message: 'Ảnh/video không hợp lệ.' }, { status: 400 });
+  if (body.key.startsWith('sample-static/')) return NextResponse.json({ message: 'Ảnh minh họa tích hợp của dữ liệu mẫu không thể xóa.' }, { status: 409 });
+
+  const parsed = parseMaterialMediaKey(body.key);
+  if (!parsed || parsed.itemId !== body.itemId) return NextResponse.json({ message: 'Ảnh/video không hợp lệ.' }, { status: 400 });
+  const meta = await getMaterialMediaMeta(body.key);
+  if (!meta) return NextResponse.json({ message: 'Không tìm thấy ảnh/video.' }, { status: 404 });
+
   try {
-    const bucket = getMaterialMediaBucket();
-    const head = await bucket.head(key);
-    if (!head) return NextResponse.json({ message: 'Không tìm thấy ảnh/video.' }, { status: 404 });
-    await bucket.delete(key);
-    await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Xóa media tư liệu', entity: 'Tư liệu gia phả', details: `Đã xóa “${head.customMetadata?.name ?? key}” khỏi tư liệu ${itemId}` });
+    await deleteMaterialMediaRecord(body.key);
+    await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Xóa media tư liệu', entity: 'Tư liệu gia phả', details: `Đã xóa “${meta.name}” khỏi tư liệu ${body.itemId}` });
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    const message = error instanceof Error && error.message.includes('MEDIA')
-      ? 'Kho ảnh/video R2 chưa được cấu hình.'
-      : 'Không thể xóa ảnh/video.';
-    return NextResponse.json({ message }, { status: 503 });
+  } catch {
+    return NextResponse.json({ message: 'Không thể xóa ảnh/video.' }, { status: 500 });
   }
 }
