@@ -59,13 +59,14 @@ export default function GenerationFilterInfo() {
       popover.setAttribute('aria-label', 'Cách hiển thị cây gia phả');
       popover.innerHTML = `
         <div class="generation-info-header">
-          <strong>Cách hiển thị cây gia phả</strong>
+          <strong>Cách đọc cây gia phả</strong>
           <button type="button" class="generation-info-close" aria-label="Đóng giải thích">×</button>
         </div>
-        <p><b>Tất cả các đời:</b> hiển thị cây đầy đủ theo nhánh cha – con, giúp xem rõ quan hệ trong toàn gia phả.</p>
-        <p><b>Xem riêng một đời:</b> chỉ giữ các thành viên của đời được chọn. Vị trí các ô vẫn bám theo nhánh gốc nên khoảng cách có thể gần hoặc xa khác nhau.</p>
-        <p>Các đường nối có thể không hiện đầy đủ khi cha/mẹ thuộc đời khác đang được ẩn.</p>
-        <p class="generation-info-emphasis">Muốn xem rõ quan hệ cha – con – dâu – rể, hãy chọn “Tất cả các đời”.</p>
+        <p><b>Tất cả các đời:</b> hệ thống cố gắng hiển thị đầy đủ cây theo từng nhánh cha – con. Đường dọc là trục của một nhánh; gạch ngang nối từ trục vào ô thành viên để cho biết người đó thuộc nhánh nào.</p>
+        <p><b>Nếu đang xem đủ 5 đời mà vẫn thiếu một gạch nối:</b> không nên hiểu ngay là hai người không có quan hệ. Nếu cả cha/mẹ và người con đều đang hiện nhưng đoạn nối bị thiếu, đó có thể là cách bố trí hoặc đường nối chưa được vẽ lại đúng vị trí. Quan hệ nên được đối chiếu bằng dòng “Con của …” trên ô thành viên.</p>
+        <p><b>Khi xem riêng một đời:</b> cha/mẹ hoặc con ở đời khác bị ẩn. Vì đầu kia của quan hệ không còn trên màn hình nên một số đường nối sẽ chủ động không hiện đầy đủ. Đây là cách hiển thị theo bộ lọc, không phải mất dữ liệu.</p>
+        <p><b>Vì sao có ô sát nhau, có ô cách xa?</b> khoảng cách chỉ phục vụ bố cục. Hệ thống giữ các thành viên cùng nhánh gần nhau, chừa chỗ cho anh/chị/em, dâu/rể và các nhánh con bên dưới, đồng thời tránh các ô đè lên nhau. Vì vậy hai ô xa nhau không có nghĩa là quan hệ xa hơn; hai ô sát nhau cũng không có nghĩa là quan hệ gần hơn.</p>
+        <p class="generation-info-emphasis"><b>Cách kiểm tra chắc nhất:</b> xem tên cha/mẹ ở dòng “Con của …”. Nếu cần nhìn toàn bộ mối nối giữa các thế hệ, chọn “Tất cả các đời”.</p>
       `;
 
       const setOpen = (open: boolean) => {
@@ -208,14 +209,18 @@ export default function GenerationFilterInfo() {
     .mobile-generation-info-popover {
       position: fixed;
       z-index: 2147483000;
-      top: calc(env(safe-area-inset-top, 0px) + 12px);
+      top: 50%;
       left: 12px;
       right: 12px;
       width: auto;
       max-width: 430px;
+      max-height: calc(100dvh - 32px);
       margin: 0 auto;
       box-sizing: border-box;
       padding: 17px 17px 16px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
       border: 1px solid #d0a043;
       border-radius: 15px;
       background: #310504f7;
@@ -227,8 +232,8 @@ export default function GenerationFilterInfo() {
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
-      transform: translateY(-9px) scale(.985);
-      transform-origin: top center;
+      transform: translateY(calc(-50% - 8px)) scale(.985);
+      transform-origin: center;
       transition: opacity .16s ease, transform .16s ease, visibility .16s ease;
       -webkit-backdrop-filter: blur(18px);
       backdrop-filter: blur(18px);
@@ -237,14 +242,19 @@ export default function GenerationFilterInfo() {
       opacity: 1;
       visibility: visible;
       pointer-events: auto;
-      transform: translateY(0) scale(1);
+      transform: translateY(-50%) scale(1);
     }
     .generation-info-header {
+      position: sticky;
+      top: -17px;
+      z-index: 2;
       display: grid;
       grid-template-columns: minmax(0, 1fr) 36px;
       align-items: center;
       gap: 10px;
-      margin: 0 0 11px;
+      margin: -1px -1px 11px;
+      padding: 1px 1px 8px;
+      background: linear-gradient(180deg,#310504 78%,#31050400);
     }
     .mobile-generation-info-popover strong {
       display: block;
@@ -276,10 +286,10 @@ export default function GenerationFilterInfo() {
       transform: scale(.95);
     }
     .mobile-generation-info-popover p {
-      margin: 0 0 9px;
+      margin: 0 0 10px;
       color: #e4cfaa;
       font-size: 12.5px;
-      line-height: 1.52;
+      line-height: 1.55;
     }
     .mobile-generation-info-popover p:last-child {
       margin-bottom: 0;
