@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 
-type EventFilter = 'all' | 'memorial' | 'birthday' | 'tomb';
+type EventFilter = 'all' | 'memorial' | 'birthday' | 'tomb' | 'family';
 type TextSnapshot = { source: string; target: string };
 type AttributeSnapshot = { source: string; target: string };
 
@@ -17,7 +17,7 @@ const HUE_REPLACEMENTS: Array<[string, string]> = [
   ['Chưa có sự kiện nào được cập nhật.', 'Chưa có việc họ nào được ghi.'],
   ['Chọn cách bạn muốn truy cập', 'Chọn cách vô gia phả'],
   ['Tôi hiểu, tiếp tục xem', 'Đã rõ, coi tiếp'],
-  ['Sự kiện gia đình', 'Việc họ'],
+  ['Sự kiện gia đình', 'Sự Kiện'],
   ['Tìm thành viên', 'Tìm người trong họ'],
   ['Thêm vào nhánh của', 'Thêm vô nhánh của'],
   ['Thêm vào gia phả', 'Thêm vô gia phả'],
@@ -72,7 +72,7 @@ export default function EventsHueEnhancements() {
       }
 
       document.body.appendChild(trace);
-      orbitTimer = window.setTimeout(clearFilterOrbit, 560);
+      orbitTimer = window.setTimeout(clearFilterOrbit, 760);
     };
 
     const applyHueWording = () => {
@@ -133,6 +133,7 @@ export default function EventsHueEnhancements() {
       if (event.classList.contains('memorial')) return 'memorial';
       if (event.classList.contains('birthday')) return 'birthday';
       if (event.classList.contains('tomb-sweeping') || event.classList.contains('tao-mo')) return 'tomb';
+      if (event.classList.contains('family-work')) return 'family';
       return null;
     };
 
@@ -163,8 +164,10 @@ export default function EventsHueEnhancements() {
           empty.innerHTML = '<strong>Chưa có ngày kỵ trong mục ni</strong><span>Bổ sung ngày kỵ trong hồ sơ người thân để hiện lịch.</span>';
         } else if (activeFilter === 'birthday') {
           empty.innerHTML = '<strong>Chưa có sinh nhật trong mục ni</strong><span>Bổ sung ngày sinh trong hồ sơ người thân để hiện lịch.</span>';
+        } else if (activeFilter === 'family') {
+          empty.innerHTML = '<strong>Chưa có việc họ nào được ghi</strong><span>Các việc chung của dòng họ sẽ được hiển thị tại mục ni.</span>';
         } else {
-          empty.innerHTML = '<strong>Chưa có việc họ nào được ghi</strong><span>Bổ sung ngày sinh, ngày kỵ hoặc lịch Chạp mộ để theo dõi.</span>';
+          empty.innerHTML = '<strong>Chưa có sự kiện nào được ghi</strong><span>Bổ sung ngày sinh, ngày kỵ, Chạp mộ hoặc việc họ để theo dõi.</span>';
         }
       }
     };
@@ -173,42 +176,73 @@ export default function EventsHueEnhancements() {
       const view = document.querySelector<HTMLElement>('.events-view');
       const heading = view?.querySelector<HTMLElement>('.events-heading');
       if (!view || !heading) return;
-      if (!view.querySelector('.event-filter-bar')) {
-        const counts = {
-          memorial: view.querySelectorAll('.family-event.memorial').length,
-          birthday: view.querySelectorAll('.family-event.birthday').length,
-          tomb: view.querySelectorAll('.family-event.tomb-sweeping,.family-event.tao-mo').length,
-        };
-        const bar = document.createElement('div');
+
+      const title = heading.querySelector<HTMLElement>('h2');
+      if (title && isVietnameseUi() && title.textContent?.trim() !== 'Sự Kiện') title.textContent = 'Sự Kiện';
+      view.dataset.eventsEnhancer = '20261002-family-v2';
+
+      const counts = {
+        memorial: view.querySelectorAll('.family-event.memorial').length,
+        birthday: view.querySelectorAll('.family-event.birthday').length,
+        tomb: view.querySelectorAll('.family-event.tomb-sweeping,.family-event.tao-mo').length,
+        family: view.querySelectorAll('.family-event.family-work').length,
+      };
+
+      let bar = view.querySelector<HTMLElement>('.event-filter-bar');
+      if (!bar) {
+        bar = document.createElement('div');
         bar.className = 'event-filter-bar';
         bar.setAttribute('role', 'group');
-        bar.setAttribute('aria-label', 'Lọc việc họ');
-        const filters: Array<[EventFilter, string, number]> = [
-          ['all', 'Tất cả', counts.memorial + counts.birthday + counts.tomb],
-          ['birthday', 'Sinh nhật', counts.birthday],
-          ['memorial', 'Ngày kỵ', counts.memorial],
-          ['tomb', 'Chạp mộ', counts.tomb],
-        ];
-        filters.forEach(([filter, label, count]) => {
-          const button = document.createElement('button');
+        bar.setAttribute('aria-label', 'Lọc sự kiện');
+        heading.insertAdjacentElement('afterend', bar);
+      }
+
+      const filters: Array<[EventFilter, string, number]> = [
+        ['all', 'Tất cả', counts.memorial + counts.birthday + counts.tomb + counts.family],
+        ['birthday', 'Sinh nhật', counts.birthday],
+        ['memorial', 'Ngày kỵ', counts.memorial],
+        ['tomb', 'Chạp mộ', counts.tomb],
+        ['family', 'Việc họ', counts.family],
+      ];
+
+      filters.forEach(([filter, label, count]) => {
+        let button = bar!.querySelector<HTMLButtonElement>(`.event-filter-button[data-filter="${filter}"]`);
+        if (!button) {
+          button = document.createElement('button');
           button.type = 'button';
           button.className = 'event-filter-button';
           button.dataset.filter = filter;
-          button.innerHTML = `<span>${label}</span><small>${count}</small>`;
           button.addEventListener('click', () => {
             activeFilter = filter;
             applyEventFilter();
-            window.requestAnimationFrame(() => runFilterOrbit(button));
+            window.requestAnimationFrame(() => runFilterOrbit(button!));
           });
-          bar.appendChild(button);
-        });
-        heading.insertAdjacentElement('afterend', bar);
+          bar!.appendChild(button);
+        }
+        const labelNode = button.querySelector('span');
+        const countNode = button.querySelector('small');
+        if (!labelNode || !countNode) {
+          button.innerHTML = `<span>${label}</span><small>${count}</small>`;
+        } else {
+          if (labelNode.textContent !== label) labelNode.textContent = label;
+          if (countNode.textContent !== String(count)) countNode.textContent = String(count);
+        }
+      });
 
-        const empty = document.createElement('div');
+      const wanted = new Set(filters.map(([filter]) => filter));
+      bar.querySelectorAll<HTMLButtonElement>('.event-filter-button').forEach((button) => {
+        const filter = button.dataset.filter as EventFilter | undefined;
+        if (!filter || !wanted.has(filter)) button.remove();
+      });
+
+      let empty = view.querySelector<HTMLElement>('.event-filter-empty');
+      if (!empty) {
+        empty = document.createElement('div');
         empty.className = 'event-filter-empty';
         empty.hidden = true;
         bar.insertAdjacentElement('afterend', empty);
       }
+
       applyEventFilter();
     };
 
@@ -286,16 +320,16 @@ export default function EventsHueEnhancements() {
       pointer-events: none;
       box-sizing: border-box;
       overflow: visible;
-      border: 1px solid rgba(239,190,69,.24);
-      box-shadow: 0 0 9px rgba(255,210,74,.46), inset 0 0 6px rgba(255,225,125,.13);
+      border: 1px solid rgba(239,190,69,.32);
+      box-shadow: 0 0 12px rgba(255,210,74,.68), inset 0 0 7px rgba(255,225,125,.18);
     }
     .event-filter-gold-segment {
       position: absolute;
       display: block;
       pointer-events: none;
       opacity: 0;
-      background: linear-gradient(90deg,transparent 0%,#ffd55d 18%,#fff9d2 50%,#ffd04a 80%,transparent 100%);
-      filter: drop-shadow(0 0 3px #ffe38a) drop-shadow(0 0 7px #ffc62f);
+      background: linear-gradient(90deg,transparent 0%,#ffd55d 14%,#fffbd8 50%,#ffd04a 84%,transparent 100%);
+      filter: drop-shadow(0 0 4px #ffe38a) drop-shadow(0 0 8px #ffc62f);
     }
     .event-filter-gold-segment.top {
       top: -1px;
@@ -304,7 +338,7 @@ export default function EventsHueEnhancements() {
       height: 3px;
       transform: scaleX(0);
       transform-origin: left center;
-      animation: event-filter-gold-x .11s linear 0s forwards;
+      animation: event-filter-gold-x .16s linear 0s forwards;
     }
     .event-filter-gold-segment.right {
       top: 7px;
@@ -313,8 +347,8 @@ export default function EventsHueEnhancements() {
       height: calc(100% - 14px);
       transform: scaleY(0);
       transform-origin: center top;
-      animation: event-filter-gold-y .11s linear .11s forwards;
-      background: linear-gradient(180deg,transparent 0%,#ffd55d 18%,#fff9d2 50%,#ffd04a 80%,transparent 100%);
+      animation: event-filter-gold-y .16s linear .16s forwards;
+      background: linear-gradient(180deg,transparent 0%,#ffd55d 14%,#fffbd8 50%,#ffd04a 84%,transparent 100%);
     }
     .event-filter-gold-segment.bottom {
       right: 7px;
@@ -323,7 +357,7 @@ export default function EventsHueEnhancements() {
       height: 3px;
       transform: scaleX(0);
       transform-origin: right center;
-      animation: event-filter-gold-x .11s linear .22s forwards;
+      animation: event-filter-gold-x .16s linear .32s forwards;
     }
     .event-filter-gold-segment.left {
       left: -1px;
@@ -332,19 +366,19 @@ export default function EventsHueEnhancements() {
       height: calc(100% - 14px);
       transform: scaleY(0);
       transform-origin: center bottom;
-      animation: event-filter-gold-y .11s linear .33s forwards;
-      background: linear-gradient(180deg,transparent 0%,#ffd55d 18%,#fff9d2 50%,#ffd04a 80%,transparent 100%);
+      animation: event-filter-gold-y .16s linear .48s forwards;
+      background: linear-gradient(180deg,transparent 0%,#ffd55d 14%,#fffbd8 50%,#ffd04a 84%,transparent 100%);
     }
     @keyframes event-filter-gold-x {
       0% { transform: scaleX(0); opacity: 0; }
-      10% { opacity: 1; }
-      88% { opacity: 1; }
+      8% { opacity: 1; }
+      92% { opacity: 1; }
       100% { transform: scaleX(1); opacity: 1; }
     }
     @keyframes event-filter-gold-y {
       0% { transform: scaleY(0); opacity: 0; }
-      10% { opacity: 1; }
-      88% { opacity: 1; }
+      8% { opacity: 1; }
+      92% { opacity: 1; }
       100% { transform: scaleY(1); opacity: 1; }
     }
 
@@ -369,12 +403,5 @@ export default function EventsHueEnhancements() {
     .mode-mobile .event-filter-bar { padding: 9px 14px 11px; gap: 7px; }
     .mode-mobile .event-filter-button { height: 34px; padding: 0 10px; font-size: 10px; }
     .mode-mobile .event-filter-empty { margin: 14px; }
-
-    @media (prefers-reduced-motion: reduce) {
-      .event-filter-gold-segment {
-        animation-duration: .01ms !important;
-        animation-delay: 0s !important;
-      }
-    }
   `}</style>;
 }
