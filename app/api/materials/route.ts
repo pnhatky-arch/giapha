@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDatabase, writeAuditLog } from '@/db';
 import { getInternalUser } from '@/app/internal-auth';
+import { deleteMaterialMedia } from '@/lib/material-media';
 
 const MAX_ITEMS = 600;
 const MAX_TITLE_LENGTH = 120;
@@ -137,6 +138,7 @@ export async function DELETE(request: Request) {
   const ids = [...descendantIds(allItems, current.id)];
   const db = getDatabase();
   await db.batch(ids.map((id) => db.prepare('DELETE FROM material_items WHERE id = ?').bind(id)));
+  try { await deleteMaterialMedia(ids); } catch { /* R2 may not be configured yet; deletion of D1 material must still succeed. */ }
   const countText = ids.length > 1 ? ` cùng ${ids.length - 1} mục bên trong` : '';
   await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Xóa tư liệu', entity: 'Tư liệu gia phả', details: `Đã xóa ${activityFor(current.kind)} “${current.title}”${countText}` });
   return NextResponse.json({ ok: true, deletedIds: ids });
