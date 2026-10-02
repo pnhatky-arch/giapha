@@ -57,7 +57,7 @@ function Tree({ family, query, generation, language, onSelect }: { family: Perso
         {parent.children?.[0] && visible(parent.children[0]) && <div className="children-row">
           {parent.children?.map((child) => <div className="child-stack" key={child.id}>
             <PersonCard person={child} query={query} language={language} onSelect={onSelect} />
-            {child.children?.[0] && visible(child.children[0]) && child.children?.map((grandchild) => <div className="grandchild-stack" key={grandchild.id}><PersonCard person={grandchild} query={query} generation={generation} language={language} onSelect={onSelect} /><DescendantBranches person={grandchild} query={query} generation={generation} language={language} onSelect={onSelect} /></div>)}
+            {child.children?.[0] && visible(child.children[0]) && child.children?.map((grandchild) => <div className="grandchild-stack" key={grandchild.id}><PersonCard person={grandchild} query={query} language={language} onSelect={onSelect} /><DescendantBranches person={grandchild} query={query} generation={generation} language={language} onSelect={onSelect} /></div>)}
           </div>)}
         </div>}
       </div>)}
