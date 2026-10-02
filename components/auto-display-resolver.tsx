@@ -12,9 +12,8 @@ function configuredMode(): DisplaySetting {
 
 function detectMode(): ResolvedMode {
   const viewportWidth = Math.round(window.visualViewport?.width ?? window.innerWidth);
-  const viewportHeight = Math.round(window.visualViewport?.height ?? window.innerHeight);
   const screenWidth = Math.round(window.screen?.width ?? viewportWidth);
-  const screenHeight = Math.round(window.screen?.height ?? viewportHeight);
+  const screenHeight = Math.round(window.screen?.height ?? window.innerHeight);
   const shortestScreen = Math.min(screenWidth, screenHeight);
   const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
   const noHover = window.matchMedia('(hover: none)').matches;
@@ -34,8 +33,8 @@ function fitTreeToViewport() {
   const tree = scaleBox?.querySelector<HTMLElement>('.tree');
   if (!viewport || !scaleBox || !tree) return;
 
-  const naturalWidth = Math.max(1, scaleBox.scrollWidth, tree.scrollWidth, tree.offsetWidth, 1360);
-  const naturalHeight = Math.max(1, scaleBox.scrollHeight, tree.scrollHeight, tree.offsetHeight);
+  const naturalWidth = Math.max(1, tree.scrollWidth, tree.offsetWidth, 1360);
+  const naturalHeight = Math.max(1, tree.scrollHeight, tree.offsetHeight, 680);
   const availableWidth = Math.max(1, viewport.clientWidth - 20);
   const availableHeight = Math.max(1, viewport.clientHeight - 20);
   const scale = Math.max(0.18, Math.min(1, availableWidth / naturalWidth, availableHeight / naturalHeight));
@@ -48,13 +47,13 @@ function fitTreeToViewport() {
   viewport.style.setProperty('overflow-x', 'hidden', 'important');
 
   const output = viewport.querySelector<HTMLOutputElement>('.zoom-controls output');
-  if (output && output.textContent !== `${percent}%`) output.textContent = `${percent}%`;
+  if (output) output.textContent = `${percent}%`;
 }
 
 function clearAutoTreeFit() {
   const viewport = document.querySelector<HTMLElement>('.tree-viewport');
   const scaleBox = viewport?.querySelector<HTMLElement>('.tree-scale');
-  if (viewport) viewport.style.removeProperty('overflow-x');
+  viewport?.style.removeProperty('overflow-x');
   if (!scaleBox) return;
   scaleBox.style.removeProperty('transform-origin');
   scaleBox.style.removeProperty('margin-left');
@@ -66,83 +65,56 @@ export default function AutoDisplayResolver() {
   useEffect(() => {
     let frame = 0;
     let treeFrame = 0;
-    let lastResolved: ResolvedMode | null = null;
-    let applying = false;
 
-    const updateStatus = (shell: HTMLElement, setting: DisplaySetting, resolved: ResolvedMode | null) => {
+    const updateStatus = (shell: HTMLElement, resolved: ResolvedMode | null) => {
       const status = shell.querySelector<HTMLElement>('.display-card .setting-meta span');
       if (!status) return;
-      if (setting !== 'auto' || !resolved) {
-        if (status.textContent !== 'Auto Scale') status.textContent = 'Auto Scale';
-        return;
-      }
-      const next = `Auto Scale · ${resolved === 'mobile' ? 'Mobile' : 'Desktop'}`;
-      if (status.textContent !== next) status.textContent = next;
-    };
-
-    const scheduleTreeFit = (setting: DisplaySetting) => {
-      window.cancelAnimationFrame(treeFrame);
-      treeFrame = window.requestAnimationFrame(() => {
-        if (setting === 'auto') fitTreeToViewport();
-        else clearAutoTreeFit();
-      });
+      status.textContent = resolved ? `Auto Scale · ${resolved === 'mobile' ? 'Mobile' : 'Desktop'}` : 'Auto Scale';
     };
 
     const apply = () => {
-      if (applying) return;
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
         const shell = document.querySelector<HTMLElement>('.app-shell');
         if (!shell) return;
+
         const setting = configuredMode();
-        const resolved = setting === 'auto' ? detectMode() : setting;
-
-        applying = true;
-        shell.dataset.displaySetting = setting;
-        shell.dataset.autoDisplay = setting === 'auto' ? resolved : '';
-        shell.classList.remove('mode-auto', 'mode-mobile', 'mode-desktop', 'auto-resolved-mobile', 'auto-resolved-desktop');
-        shell.classList.add(`mode-${resolved}`);
-        if (setting === 'auto') shell.classList.add(`auto-resolved-${resolved}`);
-        applying = false;
-
-        if (setting === 'auto' && resolved !== lastResolved) {
-          lastResolved = resolved;
-          window.dispatchEvent(new CustomEvent('gia-pha-auto-display-change', { detail: { mode: resolved } }));
-        } else if (setting !== 'auto') {
-          lastResolved = null;
+        if (setting !== 'auto') {
+          shell.removeAttribute('data-auto-display');
+          updateStatus(shell, null);
+          clearAutoTreeFit();
+          return;
         }
 
-        updateStatus(shell, setting, setting === 'auto' ? resolved : null);
-        scheduleTreeFit(setting);
+        const resolved = detectMode();
+        shell.dataset.autoDisplay = resolved;
+        updateStatus(shell, resolved);
+
+        window.cancelAnimationFrame(treeFrame);
+        treeFrame = window.requestAnimationFrame(() => {
+          if (document.querySelector('.tree-viewport')) fitTreeToViewport();
+        });
       });
     };
 
-    const classObserver = new MutationObserver(() => {
-      if (!applying) apply();
-    });
-
-    const attachObserver = () => {
-      const shell = document.querySelector<HTMLElement>('.app-shell');
-      if (shell) classObserver.observe(shell, { attributes: true, attributeFilter: ['class'] });
-    };
-
-    attachObserver();
-    apply();
-
-    window.addEventListener('resize', apply, { passive: true });
-    window.addEventListener('orientationchange', apply, { passive: true });
-    window.visualViewport?.addEventListener('resize', apply, { passive: true });
-    window.visualViewport?.addEventListener('scroll', apply, { passive: true });
-    window.screen.orientation?.addEventListener?.('change', apply);
-
+    const classObserver = new MutationObserver(apply);
     const bodyObserver = new MutationObserver(() => {
       const shell = document.querySelector<HTMLElement>('.app-shell');
       if (!shell) return;
       classObserver.disconnect();
-      attachObserver();
+      classObserver.observe(shell, { attributes: true, attributeFilter: ['class'] });
       apply();
     });
+
+    const shell = document.querySelector<HTMLElement>('.app-shell');
+    if (shell) classObserver.observe(shell, { attributes: true, attributeFilter: ['class'] });
     bodyObserver.observe(document.body, { childList: true, subtree: true });
+
+    window.addEventListener('resize', apply, { passive: true });
+    window.addEventListener('orientationchange', apply, { passive: true });
+    window.visualViewport?.addEventListener('resize', apply, { passive: true });
+    window.screen.orientation?.addEventListener?.('change', apply);
+    apply();
 
     return () => {
       window.cancelAnimationFrame(frame);
@@ -152,11 +124,108 @@ export default function AutoDisplayResolver() {
       window.removeEventListener('resize', apply);
       window.removeEventListener('orientationchange', apply);
       window.visualViewport?.removeEventListener('resize', apply);
-      window.visualViewport?.removeEventListener('scroll', apply);
       window.screen.orientation?.removeEventListener?.('change', apply);
+      const current = document.querySelector<HTMLElement>('.app-shell');
+      current?.removeAttribute('data-auto-display');
       clearAutoTreeFit();
     };
   }, []);
 
-  return null;
+  return <style>{`
+    /* Auto mode is resolved through a data attribute instead of rewriting the
+       React-owned className. This keeps automatic layout stable after rerenders. */
+    .app-shell.mode-auto[data-auto-display="mobile"] {
+      width: min(430px, 100%) !important;
+      margin: 0 auto !important;
+      border-inline: 1px solid #c38b3252;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .topbar {
+      height: 68px !important;
+      align-items: center !important;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .topbar::after { display: none !important; }
+    .app-shell.mode-auto[data-auto-display="mobile"] .mobile-menu {
+      display: grid !important;
+      place-items: center !important;
+      margin-left: 12px !important;
+      width: 38px !important;
+      height: 38px !important;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .brand {
+      width: auto !important;
+      flex: 1 !important;
+      border: 0 !important;
+      padding: 8px 12px !important;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .brand p { display: none !important; }
+    .app-shell.mode-auto[data-auto-display="mobile"] .brand h1 { font-size: 16px !important; }
+    .app-shell.mode-auto[data-auto-display="mobile"] .crest { width: 36px !important; height: 36px !important; }
+    .app-shell.mode-auto[data-auto-display="mobile"] .account-name,
+    .app-shell.mode-auto[data-auto-display="mobile"] .logout-action span { display: none !important; }
+    .app-shell.mode-auto[data-auto-display="mobile"] .language-select select { width: 70px !important; }
+    .app-shell.mode-auto[data-auto-display="mobile"] .tabs {
+      position: fixed !important;
+      z-index: 30 !important;
+      left: 50% !important;
+      right: auto !important;
+      transform: translateX(-50%) !important;
+      width: min(430px, 100%) !important;
+      bottom: 0 !important;
+      height: 64px !important;
+      background: #390604 !important;
+      border-top: 1px solid #b77d2c !important;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .tabs button {
+      flex: 1 !important;
+      min-width: 0 !important;
+      padding: 8px 2px 7px !important;
+      flex-direction: column !important;
+      gap: 2px !important;
+      font-size: 8px !important;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .tabs svg { display: block !important; }
+    .app-shell.mode-auto[data-auto-display="mobile"] .workspace { height: calc(100vh - 132px) !important; }
+    .app-shell.mode-auto[data-auto-display="mobile"] .filter-panel { display: none !important; }
+    .app-shell.mode-auto[data-auto-display="mobile"] .content-heading {
+      height: 68px !important;
+      padding: 11px 16px !important;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .tree-scale {
+      margin-top: 16px !important;
+      transform-origin: top left !important;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .zoom-controls {
+      bottom: 78px !important;
+      right: max(10px, calc((100vw - 430px) / 2 + 10px)) !important;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .settings-view {
+      width: calc(100% - 28px) !important;
+      padding: 24px 0 78px !important;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .settings-heading h2 { font-size: 28px !important; }
+    .app-shell.mode-auto[data-auto-display="mobile"] .setting-card {
+      grid-template-columns: auto minmax(0, 1fr) !important;
+      padding: 18px !important;
+      gap: 14px !important;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .setting-card > button,
+    .app-shell.mode-auto[data-auto-display="mobile"] .setting-card > [data-slot="alert-dialog-trigger"],
+    .app-shell.mode-auto[data-auto-display="mobile"] .display-switch,
+    .app-shell.mode-auto[data-auto-display="mobile"] .language-card select {
+      grid-column: 1 / -1 !important;
+      width: 100% !important;
+    }
+    .app-shell.mode-auto[data-auto-display="mobile"] .display-switch button {
+      flex: 1 !important;
+      justify-content: center !important;
+      padding-inline: 4px !important;
+    }
+
+    .app-shell.mode-auto[data-auto-display="desktop"] {
+      width: 100% !important;
+      min-width: 1100px !important;
+      margin: 0 !important;
+      border-inline: 0 !important;
+    }
+  `}</style>;
 }
