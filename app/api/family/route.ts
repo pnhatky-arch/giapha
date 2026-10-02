@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ensureAuthSchema, getDatabase, writeAuditLog } from '@/db';
 import { getInternalUser } from '@/app/internal-auth';
-import { cloneFamily, flattenFamily, initialFamily, type FamilyDataMode, type FamilyPerson } from '@/lib/family-tree';
+import { cloneFamily, flattenFamily, initialFamily, SAMPLE_MEMBER_COUNT, type FamilyDataMode, type FamilyPerson } from '@/lib/family-tree';
 
 const TREE_ID = 'primary';
 const DATA_MODE_KEY = 'family_data_mode';
@@ -128,7 +128,11 @@ export async function PUT(request: Request) {
       .bind(DATA_MODE_KEY, dataMode, now, user.id)] : []),
   ]);
   const action = typeof body.activity?.action === 'string' ? body.activity.action : 'Cập nhật gia phả';
-  const details = typeof body.activity?.details === 'string' ? body.activity.details : 'Đã cập nhật dữ liệu gia phả';
+  const details = action === 'Bắt đầu dữ liệu chính thức'
+    ? `Đã xóa ${SAMPLE_MEMBER_COUNT} thành viên dữ liệu thử nghiệm và tạo khung gia phả trống.`
+    : action === 'Phục hồi dữ liệu thử nghiệm'
+      ? `Đã khôi phục bộ dữ liệu thử nghiệm gồm ${SAMPLE_MEMBER_COUNT} thành viên, 6 đời.`
+      : typeof body.activity?.details === 'string' ? body.activity.details : 'Đã cập nhật dữ liệu gia phả';
   await writeAuditLog({ actorId: user.id, actorUsername: user.username, action, entity: auditEntityFor(action), details });
   return NextResponse.json({ ok: true, family, dataMode });
 }
