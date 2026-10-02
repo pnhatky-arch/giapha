@@ -22,6 +22,7 @@ export default function GenerationSelectionGlow() {
       if (!isMobileViewport && !isForcedMobileMode) return;
 
       window.requestAnimationFrame(() => {
+        clearTrace();
         const closeButton = panel.querySelector<HTMLButtonElement>('.close-menu');
         closeButton?.click();
       });
@@ -56,9 +57,10 @@ export default function GenerationSelectionGlow() {
       closeMobileMenu(button);
     };
 
-    document.addEventListener('click', handleClick, true);
+    // Bubble phase is intentional: React must process setGeneration(...) first.
+    document.addEventListener('click', handleClick);
     return () => {
-      document.removeEventListener('click', handleClick, true);
+      document.removeEventListener('click', handleClick);
       clearTrace();
     };
   }, []);
