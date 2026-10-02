@@ -45,7 +45,8 @@ export default function TombSweepingEvents() {
       view.querySelectorAll<HTMLButtonElement>('.event-filter-button').forEach((button) => {
         const count = button.querySelector('small');
         const key = button.dataset.filter ?? '';
-        if (count && key in counts) count.textContent = String(counts[key]);
+        const next = key in counts ? String(counts[key]) : null;
+        if (count && next !== null && count.textContent !== next) count.textContent = next;
       });
     };
 
@@ -173,22 +174,26 @@ export default function TombSweepingEvents() {
         else heading.insertAdjacentElement('afterend', list);
       }
 
-      list.innerHTML = '';
-      events.forEach((event) => {
-        const item = document.createElement('article');
-        item.className = 'family-event tomb-sweeping family-tomb-event';
-        item.dataset.eventId = event.id;
-        item.innerHTML = `
-          <span class="tomb-event-mark" aria-hidden="true">祀</span>
-          <span class="event-copy"><em>Chạp mộ</em><strong>${escapeHtml(event.branch || event.location)}</strong><small>${escapeHtml(event.location)}${event.repeatYearly ? ' · Hằng năm' : ''}${event.note ? ` · ${escapeHtml(event.note)}` : ''}</small></span>
-          <time datetime="${escapeHtml(event.date)}">${escapeHtml(formatDate(event.date, event.repeatYearly))}</time>
-          ${canEdit ? '<span class="tomb-event-actions"><button type="button" class="tomb-edit">Sửa</button><button type="button" class="tomb-delete">Xóa</button></span>' : ''}`;
-        if (canEdit) {
-          item.querySelector('.tomb-edit')?.addEventListener('click', () => openDialog(event));
-          item.querySelector('.tomb-delete')?.addEventListener('click', () => void removeEvent(event));
-        }
-        list!.appendChild(item);
-      });
+      const signature = JSON.stringify({ canEdit, events });
+      if (list.dataset.signature !== signature) {
+        list.dataset.signature = signature;
+        list.innerHTML = '';
+        events.forEach((event) => {
+          const item = document.createElement('article');
+          item.className = 'family-event tomb-sweeping family-tomb-event';
+          item.dataset.eventId = event.id;
+          item.innerHTML = `
+            <span class="tomb-event-mark" aria-hidden="true">祀</span>
+            <span class="event-copy"><em>Chạp mộ</em><strong>${escapeHtml(event.branch || event.location)}</strong><small>${escapeHtml(event.location)}${event.repeatYearly ? ' · Hằng năm' : ''}${event.note ? ` · ${escapeHtml(event.note)}` : ''}</small></span>
+            <time datetime="${escapeHtml(event.date)}">${escapeHtml(formatDate(event.date, event.repeatYearly))}</time>
+            ${canEdit ? '<span class="tomb-event-actions"><button type="button" class="tomb-edit">Sửa</button><button type="button" class="tomb-delete">Xóa</button></span>' : ''}`;
+          if (canEdit) {
+            item.querySelector('.tomb-edit')?.addEventListener('click', () => openDialog(event));
+            item.querySelector('.tomb-delete')?.addEventListener('click', () => void removeEvent(event));
+          }
+          list!.appendChild(item);
+        });
+      }
 
       const nativeEmpty = view.querySelector<HTMLElement>('.events-empty');
       if (nativeEmpty) nativeEmpty.style.display = events.length ? 'none' : '';
@@ -226,15 +231,20 @@ export default function TombSweepingEvents() {
       });
     };
 
+    const handleFilterClick = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest('.event-filter-button')) {
+        window.requestAnimationFrame(applyCurrentFilter);
+      }
+    };
+
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true });
-    document.addEventListener('click', (event) => {
-      if (event.target instanceof Element && event.target.closest('.event-filter-button')) window.requestAnimationFrame(applyCurrentFilter);
-    });
+    document.addEventListener('click', handleFilterClick);
     sync();
 
     return () => {
       observer.disconnect();
+      document.removeEventListener('click', handleFilterClick);
       cancelAnimationFrame(syncFrame);
       closeDialog();
       document.querySelectorAll('.tomb-event-add,.tomb-sweeping-list').forEach((node) => node.remove());
