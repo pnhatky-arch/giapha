@@ -41,8 +41,24 @@ export default function EventsHueEnhancements() {
   useEffect(() => {
     let activeFilter: EventFilter = 'all';
     let syncFrame = 0;
+    let orbitTimer = 0;
     const textSnapshots = new WeakMap<Text, TextSnapshot>();
     const attributeSnapshots = new WeakMap<Element, Map<string, AttributeSnapshot>>();
+
+    const runFilterOrbit = (button: HTMLButtonElement) => {
+      window.clearTimeout(orbitTimer);
+      document.querySelectorAll('.event-filter-orbit').forEach((node) => node.remove());
+      const orbit = document.createElement('span');
+      orbit.className = 'event-filter-orbit';
+      orbit.setAttribute('aria-hidden', 'true');
+      for (const side of ['top', 'right', 'bottom', 'left']) {
+        const segment = document.createElement('i');
+        segment.className = `event-filter-orbit-segment ${side}`;
+        orbit.appendChild(segment);
+      }
+      button.appendChild(orbit);
+      orbitTimer = window.setTimeout(() => orbit.remove(), 520);
+    };
 
     const applyHueWording = () => {
       const vietnamese = isVietnameseUi();
@@ -154,8 +170,8 @@ export default function EventsHueEnhancements() {
         bar.setAttribute('aria-label', 'Lọc việc họ');
         const filters: Array<[EventFilter, string, number]> = [
           ['all', 'Tất cả', counts.memorial + counts.birthday + counts.tomb],
-          ['memorial', 'Ngày kỵ', counts.memorial],
           ['birthday', 'Sinh nhật', counts.birthday],
+          ['memorial', 'Ngày kỵ', counts.memorial],
           ['tomb', 'Chạp mộ', counts.tomb],
         ];
         filters.forEach(([filter, label, count]) => {
@@ -167,6 +183,7 @@ export default function EventsHueEnhancements() {
           button.addEventListener('click', () => {
             activeFilter = filter;
             applyEventFilter();
+            runFilterOrbit(button);
           });
           bar.appendChild(button);
         });
@@ -197,7 +214,8 @@ export default function EventsHueEnhancements() {
       observer.disconnect();
       document.removeEventListener('change', sync, true);
       cancelAnimationFrame(syncFrame);
-      document.querySelectorAll('.event-filter-bar,.event-filter-empty').forEach((node) => node.remove());
+      window.clearTimeout(orbitTimer);
+      document.querySelectorAll('.event-filter-bar,.event-filter-empty,.event-filter-orbit').forEach((node) => node.remove());
       document.querySelectorAll<HTMLElement>('.family-event').forEach((event) => { event.hidden = false; });
     };
   }, []);
@@ -225,8 +243,13 @@ export default function EventsHueEnhancements() {
       background: #2d0504;
       color: #bfa98f;
       font-size: 11px;
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
       transition: border-color .18s ease, color .18s ease, background .18s ease, box-shadow .18s ease;
     }
+    .event-filter-button > span,
+    .event-filter-button > small { position: relative; z-index: 2; }
     .event-filter-button small {
       min-width: 18px;
       height: 18px;
@@ -245,6 +268,57 @@ export default function EventsHueEnhancements() {
       box-shadow: inset 0 -2px #e7bb4f, 0 0 10px #ffd45e28;
     }
     .event-filter-button.selected small { color: #f4d67e; background: #f6d56c14; }
+
+    .event-filter-orbit {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      border-radius: inherit;
+    }
+    .event-filter-orbit-segment {
+      position: absolute;
+      display: block;
+      opacity: 0;
+      pointer-events: none;
+      background: linear-gradient(90deg,transparent 0%,#ffd55d 22%,#fff7c7 52%,#ffd04a 76%,transparent 100%);
+      filter: drop-shadow(0 0 2px #ffe38a) drop-shadow(0 0 5px #ffc62f);
+    }
+    .event-filter-orbit-segment.top {
+      top: 0; left: 6px; width: calc(100% - 12px); height: 2px;
+      transform: scaleX(0); transform-origin: left center;
+      animation: event-filter-orbit-x .11s linear 0s forwards;
+    }
+    .event-filter-orbit-segment.right {
+      top: 6px; right: 0; width: 2px; height: calc(100% - 12px);
+      transform: scaleY(0); transform-origin: center top;
+      animation: event-filter-orbit-y .11s linear .11s forwards;
+      background: linear-gradient(180deg,transparent 0%,#ffd55d 22%,#fff7c7 52%,#ffd04a 76%,transparent 100%);
+    }
+    .event-filter-orbit-segment.bottom {
+      right: 6px; bottom: 0; width: calc(100% - 12px); height: 2px;
+      transform: scaleX(0); transform-origin: right center;
+      animation: event-filter-orbit-x .11s linear .22s forwards;
+    }
+    .event-filter-orbit-segment.left {
+      left: 0; bottom: 6px; width: 2px; height: calc(100% - 12px);
+      transform: scaleY(0); transform-origin: center bottom;
+      animation: event-filter-orbit-y .11s linear .33s forwards;
+      background: linear-gradient(180deg,transparent 0%,#ffd55d 22%,#fff7c7 52%,#ffd04a 76%,transparent 100%);
+    }
+    @keyframes event-filter-orbit-x {
+      0% { transform: scaleX(0); opacity: 0; }
+      12% { opacity: 1; }
+      88% { opacity: 1; }
+      100% { transform: scaleX(1); opacity: .95; }
+    }
+    @keyframes event-filter-orbit-y {
+      0% { transform: scaleY(0); opacity: 0; }
+      12% { opacity: 1; }
+      88% { opacity: 1; }
+      100% { transform: scaleY(1); opacity: .95; }
+    }
+
     .event-filter-empty {
       margin: 18px 24px;
       padding: 18px;
@@ -266,5 +340,12 @@ export default function EventsHueEnhancements() {
     .mode-mobile .event-filter-bar { padding: 9px 14px 11px; gap: 7px; }
     .mode-mobile .event-filter-button { height: 34px; padding: 0 10px; font-size: 10px; }
     .mode-mobile .event-filter-empty { margin: 14px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .event-filter-orbit-segment {
+        animation-duration: .01ms !important;
+        animation-delay: 0s !important;
+      }
+    }
   `}</style>;
 }
