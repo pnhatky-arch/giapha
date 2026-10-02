@@ -10,49 +10,75 @@ function isMobileLayout() {
 export default function GenerationFilterInfo() {
   useEffect(() => {
     let frame = 0;
+    let sequence = 0;
+
+    const triggerFor = (popover: HTMLElement) => {
+      const triggerId = popover.dataset.triggerId;
+      return triggerId ? document.getElementById(triggerId) : null;
+    };
 
     const closeAll = (except?: HTMLElement | null) => {
       document.querySelectorAll<HTMLElement>('.mobile-generation-info-popover.is-open').forEach((popover) => {
         if (except && popover === except) return;
         popover.classList.remove('is-open');
         popover.setAttribute('aria-hidden', 'true');
-        const control = popover.closest<HTMLElement>('.mobile-generation-control');
-        const trigger = control?.querySelector<HTMLElement>('.mobile-generation-info-button');
-        trigger?.setAttribute('aria-expanded', 'false');
+        triggerFor(popover)?.setAttribute('aria-expanded', 'false');
+      });
+    };
+
+    const removeOrphans = () => {
+      document.querySelectorAll<HTMLElement>('.mobile-generation-info-popover').forEach((popover) => {
+        if (!triggerFor(popover)) popover.remove();
       });
     };
 
     const install = (control: HTMLElement) => {
       if (control.querySelector('.mobile-generation-info-button')) return;
 
+      sequence += 1;
+      const triggerId = `generation-info-trigger-${Date.now()}-${sequence}`;
+      const panelId = `${triggerId}-panel`;
+
       const trigger = document.createElement('span');
+      trigger.id = triggerId;
       trigger.className = 'mobile-generation-info-button';
       trigger.setAttribute('role', 'button');
       trigger.setAttribute('tabindex', '0');
       trigger.setAttribute('aria-label', 'Giải thích cách hiển thị cây gia phả');
       trigger.setAttribute('aria-expanded', 'false');
+      trigger.setAttribute('aria-controls', panelId);
       trigger.textContent = 'i';
 
       const popover = document.createElement('div');
+      popover.id = panelId;
       popover.className = 'mobile-generation-info-popover';
-      popover.setAttribute('role', 'note');
+      popover.dataset.triggerId = triggerId;
+      popover.setAttribute('role', 'dialog');
+      popover.setAttribute('aria-modal', 'false');
       popover.setAttribute('aria-hidden', 'true');
+      popover.setAttribute('aria-label', 'Cách hiển thị cây gia phả');
       popover.innerHTML = `
-        <strong>Cách hiển thị cây gia phả</strong>
+        <div class="generation-info-header">
+          <strong>Cách hiển thị cây gia phả</strong>
+          <button type="button" class="generation-info-close" aria-label="Đóng giải thích">×</button>
+        </div>
         <p><b>Tất cả các đời:</b> hiển thị cây đầy đủ theo nhánh cha – con, giúp xem rõ quan hệ trong toàn gia phả.</p>
         <p><b>Xem riêng một đời:</b> chỉ giữ các thành viên của đời được chọn. Vị trí các ô vẫn bám theo nhánh gốc nên khoảng cách có thể gần hoặc xa khác nhau.</p>
         <p>Các đường nối có thể không hiện đầy đủ khi cha/mẹ thuộc đời khác đang được ẩn.</p>
         <p class="generation-info-emphasis">Muốn xem rõ quan hệ cha – con – dâu – rể, hãy chọn “Tất cả các đời”.</p>
       `;
 
+      const setOpen = (open: boolean) => {
+        if (open) closeAll(popover);
+        popover.classList.toggle('is-open', open);
+        popover.setAttribute('aria-hidden', open ? 'false' : 'true');
+        trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      };
+
       const toggle = (event: Event) => {
         event.preventDefault();
         event.stopPropagation();
-        const nextOpen = !popover.classList.contains('is-open');
-        closeAll(popover);
-        popover.classList.toggle('is-open', nextOpen);
-        popover.setAttribute('aria-hidden', nextOpen ? 'false' : 'true');
-        trigger.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+        setOpen(!popover.classList.contains('is-open'));
       };
 
       trigger.addEventListener('pointerdown', (event) => {
@@ -64,22 +90,33 @@ export default function GenerationFilterInfo() {
         if (event.key === 'Enter' || event.key === ' ') toggle(event);
         if (event.key === 'Escape') closeAll();
       });
+
       popover.addEventListener('pointerdown', (event) => event.stopPropagation());
-      popover.addEventListener('click', (event) => {
+      popover.addEventListener('click', (event) => event.stopPropagation());
+      popover.querySelector<HTMLButtonElement>('.generation-info-close')?.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
+        setOpen(false);
+        trigger.focus({ preventScroll: true });
       });
 
-      control.append(trigger, popover);
+      control.appendChild(trigger);
+      document.body.appendChild(popover);
+    };
+
+    const removeInjected = () => {
+      closeAll();
+      document.querySelectorAll('.mobile-generation-info-button,.mobile-generation-info-popover').forEach((node) => node.remove());
     };
 
     const sync = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
         if (!isMobileLayout()) {
-          closeAll();
+          removeInjected();
           return;
         }
+        removeOrphans();
         document.querySelectorAll<HTMLElement>('.mobile-generation-control').forEach(install);
       });
     };
@@ -107,155 +144,82 @@ export default function GenerationFilterInfo() {
       document.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('resize', sync);
       window.cancelAnimationFrame(frame);
-      document.querySelectorAll('.mobile-generation-info-button,.mobile-generation-info-popover').forEach((node) => node.remove());
+      removeInjected();
     };
   }, []);
 
   return <style>{`
-    @media (max-width: 740px) {
-      .mobile-generation-control {
-        overflow: visible !important;
-        z-index: 45 !important;
-      }
-      .mobile-generation-control::after {
-        top: auto !important;
-        right: 7px !important;
-        bottom: 4px !important;
-        transform: none !important;
-        font-size: 11px !important;
-      }
-      .mobile-generation-select {
-        padding-right: 34px !important;
-      }
-      .mobile-generation-info-button {
-        position: absolute;
-        z-index: 4;
-        top: 3px;
-        right: 4px;
-        width: 17px;
-        height: 17px;
-        display: grid;
-        place-items: center;
-        box-sizing: border-box;
-        border: 1px solid #d7ad50;
-        border-radius: 999px;
-        background: #62130ee8;
-        color: #ffe49a;
-        box-shadow: inset 0 0 0 1px #fff2b51c;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-size: 10px;
-        font-weight: 800;
-        line-height: 1;
-        cursor: pointer;
-        user-select: none;
-        -webkit-user-select: none;
-      }
-      .mobile-generation-info-button:active {
-        background: #8b2118;
-        transform: scale(.94);
-      }
-      .mobile-generation-info-popover {
-        position: absolute;
-        z-index: 2147482000;
-        top: calc(100% + 9px);
-        right: 0;
-        width: 286px;
-        max-width: calc(100vw - 24px);
-        box-sizing: border-box;
-        padding: 12px 13px;
-        border: 1px solid #c99535;
-        border-radius: 12px;
-        background: #310504f5;
-        box-shadow: 0 12px 34px #1801018f, inset 0 1px #f3d37824;
-        color: #ecd9b3;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        white-space: normal;
-        text-align: left;
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-        transform: translateY(-5px) scale(.985);
-        transform-origin: top right;
-        transition: opacity .14s ease, transform .14s ease, visibility .14s ease;
-      }
-      .mobile-generation-info-popover.is-open {
-        opacity: 1;
-        visibility: visible;
-        pointer-events: auto;
-        transform: translateY(0) scale(1);
-      }
-      .mobile-generation-info-popover strong {
-        display: block;
-        margin: 0 0 8px;
-        color: #ffe39a;
-        font-size: 12px;
-        line-height: 1.25;
-      }
-      .mobile-generation-info-popover p {
-        margin: 0 0 7px;
-        color: #e0c9a5;
-        font-size: 10.5px;
-        line-height: 1.45;
-      }
-      .mobile-generation-info-popover p:last-child { margin-bottom: 0; }
-      .mobile-generation-info-popover b {
-        color: #f4d682;
-        font-weight: 750;
-      }
-      .mobile-generation-info-popover .generation-info-emphasis {
-        padding-top: 7px;
-        border-top: 1px solid #b47c2e66;
-        color: #f1dbac;
-      }
-    }
-
-    .mode-mobile .mobile-generation-control {
+    .mobile-generation-control {
       overflow: visible !important;
-      z-index: 45 !important;
     }
-    .mode-mobile .mobile-generation-control::after {
+    .mobile-generation-control::after {
       top: auto !important;
       right: 7px !important;
       bottom: 4px !important;
       transform: none !important;
       font-size: 11px !important;
     }
-    .mode-mobile .mobile-generation-select { padding-right: 34px !important; }
-    .mode-mobile .mobile-generation-info-button {
+    .mobile-generation-select {
+      padding-right: 42px !important;
+    }
+
+    .mobile-generation-info-button {
       position: absolute;
-      z-index: 4;
-      top: 3px;
-      right: 4px;
-      width: 17px;
-      height: 17px;
+      z-index: 6;
+      top: -1px;
+      right: -1px;
+      width: 32px;
+      height: 32px;
       display: grid;
       place-items: center;
       box-sizing: border-box;
-      border: 1px solid #d7ad50;
+      border: 0;
       border-radius: 999px;
-      background: #62130ee8;
+      background: transparent;
       color: #ffe49a;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 10px;
-      font-weight: 800;
+      font-size: 11px;
+      font-weight: 850;
       line-height: 1;
       cursor: pointer;
       user-select: none;
       -webkit-user-select: none;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
-    .mode-mobile .mobile-generation-info-popover {
+    .mobile-generation-info-button::before {
+      content: '';
       position: absolute;
-      z-index: 2147482000;
-      top: calc(100% + 9px);
-      right: 0;
-      width: 286px;
-      max-width: calc(100vw - 24px);
+      width: 20px;
+      height: 20px;
+      border: 1px solid #d7ad50;
+      border-radius: 999px;
+      background: #62130ee8;
+      box-shadow: inset 0 0 0 1px #fff2b51c;
+      z-index: -1;
+    }
+    .mobile-generation-info-button:active {
+      transform: scale(.94);
+    }
+    .mobile-generation-info-button:active::before {
+      background: #8b2118;
+    }
+
+    .mobile-generation-info-popover {
+      position: fixed;
+      z-index: 2147483000;
+      top: calc(env(safe-area-inset-top, 0px) + 12px);
+      left: 12px;
+      right: 12px;
+      width: auto;
+      max-width: 430px;
+      margin: 0 auto;
       box-sizing: border-box;
-      padding: 12px 13px;
-      border: 1px solid #c99535;
-      border-radius: 12px;
-      background: #310504f5;
-      box-shadow: 0 12px 34px #1801018f, inset 0 1px #f3d37824;
+      padding: 17px 17px 16px;
+      border: 1px solid #d0a043;
+      border-radius: 15px;
+      background: #310504f7;
+      box-shadow: 0 16px 42px #160101a6, inset 0 1px #f7dd8c2b;
       color: #ecd9b3;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       white-space: normal;
@@ -263,35 +227,86 @@ export default function GenerationFilterInfo() {
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
-      transform: translateY(-5px) scale(.985);
-      transform-origin: top right;
-      transition: opacity .14s ease, transform .14s ease, visibility .14s ease;
+      transform: translateY(-9px) scale(.985);
+      transform-origin: top center;
+      transition: opacity .16s ease, transform .16s ease, visibility .16s ease;
+      -webkit-backdrop-filter: blur(18px);
+      backdrop-filter: blur(18px);
     }
-    .mode-mobile .mobile-generation-info-popover.is-open {
+    .mobile-generation-info-popover.is-open {
       opacity: 1;
       visibility: visible;
       pointer-events: auto;
       transform: translateY(0) scale(1);
     }
-    .mode-mobile .mobile-generation-info-popover strong {
+    .generation-info-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 36px;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 11px;
+    }
+    .mobile-generation-info-popover strong {
       display: block;
-      margin: 0 0 8px;
+      margin: 0;
       color: #ffe39a;
-      font-size: 12px;
-      line-height: 1.25;
+      font-size: 15px;
+      line-height: 1.3;
+      font-weight: 780;
     }
-    .mode-mobile .mobile-generation-info-popover p {
-      margin: 0 0 7px;
-      color: #e0c9a5;
-      font-size: 10.5px;
-      line-height: 1.45;
+    .generation-info-close {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid #c99535;
+      border-radius: 999px;
+      background: #5c100bd9;
+      color: #ffe49a;
+      font-size: 23px;
+      font-weight: 400;
+      line-height: 1;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
-    .mode-mobile .mobile-generation-info-popover p:last-child { margin-bottom: 0; }
-    .mode-mobile .mobile-generation-info-popover b { color: #f4d682; font-weight: 750; }
-    .mode-mobile .mobile-generation-info-popover .generation-info-emphasis {
-      padding-top: 7px;
+    .generation-info-close:active {
+      background: #8b2118;
+      transform: scale(.95);
+    }
+    .mobile-generation-info-popover p {
+      margin: 0 0 9px;
+      color: #e4cfaa;
+      font-size: 12.5px;
+      line-height: 1.52;
+    }
+    .mobile-generation-info-popover p:last-child {
+      margin-bottom: 0;
+    }
+    .mobile-generation-info-popover b {
+      color: #f5d982;
+      font-weight: 780;
+    }
+    .mobile-generation-info-popover .generation-info-emphasis {
+      margin-top: 10px;
+      padding-top: 10px;
       border-top: 1px solid #b47c2e66;
-      color: #f1dbac;
+      color: #f3ddb0;
+    }
+
+    @media (min-width: 741px) {
+      .mobile-generation-info-button,
+      .mobile-generation-info-popover {
+        display: none !important;
+      }
+      .app-shell.mode-mobile .mobile-generation-info-button {
+        display: grid !important;
+      }
+      .app-shell.mode-mobile ~ .mobile-generation-info-popover,
+      .mobile-generation-info-popover.is-open {
+        display: block;
+      }
     }
   `}</style>;
 }
