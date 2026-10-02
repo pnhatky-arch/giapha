@@ -57,7 +57,7 @@ function Tree({ family, query, generation, language, onSelect }: { family: Perso
         {parent.children?.[0] && visible(parent.children[0]) && <div className="children-row">
           {parent.children?.map((child) => <div className="child-stack" key={child.id}>
             <PersonCard person={child} query={query} language={language} onSelect={onSelect} />
-            {child.children?.[0] && visible(child.children[0]) && child.children?.map((grandchild) => <div className="grandchild-stack" key={grandchild.id}><PersonCard person={grandchild} query={query} language={language} onSelect={onSelect} /><DescendantBranches person={grandchild} query={query} generation={generation} language={language} onSelect={onSelect} /></div>)}
+            {child.children?.[0] && visible(child.children[0]) && child.children?.map((grandchild) => <div className="grandchild-stack" key={grandchild.id}><PersonCard person={grandchild} query={query} generation={generation} language={language} onSelect={onSelect} /><DescendantBranches person={grandchild} query={query} generation={generation} language={language} onSelect={onSelect} /></div>)}
           </div>)}
         </div>}
       </div>)}
@@ -328,8 +328,8 @@ export default function FamilyApp({ user }: { user: { displayName: string; usern
   const [displayMode, setDisplayMode] = useState<'auto' | 'desktop' | 'mobile'>('auto');
   const [guestStarted, setGuestStarted] = useState(false);
   const [restrictedOpen, setRestrictedOpen] = useState(false);
-  const [authPanel, setAuthPanel] = useState(false);
-  const [authMode, setAuthMode] = useState<'signup' | 'login'>('signup');
+  const [authPanel, setAuthPanel] = useState(!user);
+  const [authMode, setAuthMode] = useState<'signup' | 'login'>('login');
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState('');
   const [loginNoticeOpen, setLoginNoticeOpen] = useState(true);
@@ -572,7 +572,7 @@ export default function FamilyApp({ user }: { user: { displayName: string; usern
         {authMode === 'signup' && <label>{t(16)}<input name="fullName" autoComplete="name" minLength={2} maxLength={80} required placeholder="Phạm Văn" /></label>}
         <label>{t(17)}<input name="username" autoComplete="username" minLength={3} maxLength={30} pattern="[a-z0-9._-]+" required placeholder="phamvan" /></label>
         <label>{t(18)}<input name="password" type="password" autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'} minLength={8} maxLength={128} required placeholder="••••••••••••" /></label>
-        {authMode === 'login' && <label className="auth-remember"><input name="remember" type="checkbox" defaultChecked={Boolean(rememberedUsername)} /><span>{tx('Ghi nhớ đăng nhập trên thiết bị này')}</span></label>}
+        {authMode === 'login' && <label className="auth-remember"><input name="remember" type="checkbox" defaultChecked /><span>{tx('Ghi nhớ đăng nhập trên thiết bị này')}</span></label>}
         {authError && <p className="auth-error" role="alert">{authError}</p>}
         <button className="auth-submit" disabled={authBusy}><KeyRound />{authBusy ? t(19) : authMode === 'signup' ? t(14) : t(15)}</button>
         <button type="button" className="auth-switch" onClick={() => { setAuthMode(authMode === 'signup' ? 'login' : 'signup'); setAuthError(''); }}>{authMode === 'signup' ? t(20) : t(21)}</button>
