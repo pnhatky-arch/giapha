@@ -11,6 +11,11 @@ const config = JSON.parse(raw);
 // Force the generated Vinext config to target that Worker.
 config.name = 'giapha';
 
+// Dynamic user-entered data is translated through Cloudflare Workers AI.
+// Keep this binding in the generated deployment config even if Vinext changes
+// how it serializes plugin bindings in a future build.
+config.ai = { binding: 'AI' };
+
 // R2 is intentionally disabled for this project. Remove any R2 bindings that
 // may have been inherited or generated so Cloudflare can deploy without R2.
 delete config.r2_buckets;
@@ -26,4 +31,4 @@ await writeFile(
   'utf8',
 );
 
-console.log('Prepared Cloudflare auto deploy: Worker giapha, R2 disabled, config -> dist/server/wrangler.json');
+console.log('Prepared Cloudflare auto deploy: Worker giapha, AI enabled, R2 disabled, config -> dist/server/wrangler.json');
