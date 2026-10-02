@@ -22,10 +22,9 @@ function formatDate(value: string, repeatYearly: boolean) {
     : { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
 }
 
-export default function TombSweepingEvents() {
+export default function TombSweepingEvents({ canEdit }: { canEdit: boolean }) {
   useEffect(() => {
     let events: TombEvent[] = [];
-    let canEdit = false;
     let editingId: string | null = null;
     let loaded = false;
     let loading: Promise<void> | null = null;
@@ -82,7 +81,7 @@ export default function TombSweepingEvents() {
             <label>Địa điểm<input name="location" type="text" maxlength="120" required placeholder="Ví dụ: Nghĩa trang dòng họ" value="${escapeHtml(event?.location ?? '')}"></label>
             <label>Khu mộ / chi họ<input name="branch" type="text" maxlength="120" placeholder="Ví dụ: Khu mộ tổ · Chi trưởng" value="${escapeHtml(event?.branch ?? '')}"></label>
             <label class="tomb-note-field">Ghi chú<textarea name="note" maxlength="500" rows="3" placeholder="Việc chuẩn bị, giờ tập trung, lễ vật…">${escapeHtml(event?.note ?? '')}</textarea></label>
-            <label class="tomb-repeat-field"><input name="repeatYearly" type="checkbox" ${event?.repeatYearly === false ? '' : 'checked'}><span>Lặp lại hằng năm</span></label>
+            <label class="tomb-repeat-field"><input name="repeatYearly" type="checkbox" ${event?.repeatYearly === false ? '' : 'checked'}><span>Hằng năm</span></label>
             <p class="tomb-form-message" role="alert"></p>
             <div class="tomb-form-actions"><button type="button" class="tomb-cancel">Trở lui</button><button type="submit" class="tomb-save">${event ? 'Lưu thay đổi' : 'Thêm lịch'}</button></div>
           </form>
@@ -146,22 +145,33 @@ export default function TombSweepingEvents() {
       render();
     };
 
+    const installAddButton = (view: HTMLElement) => {
+      const bar = view.querySelector<HTMLElement>('.event-filter-bar');
+      if (!bar) return;
+      let addButton = bar.querySelector<HTMLButtonElement>('.tomb-event-add');
+      if (!canEdit) {
+        addButton?.remove();
+        return;
+      }
+      if (!addButton) {
+        addButton = document.createElement('button');
+        addButton.type = 'button';
+        addButton.className = 'tomb-event-add';
+        addButton.textContent = '+ Chạp mộ';
+        addButton.setAttribute('aria-label', 'Thêm lịch Chạp mộ');
+        addButton.addEventListener('click', () => openDialog());
+      }
+      const tombFilter = bar.querySelector<HTMLElement>('.event-filter-button[data-filter="tomb"]');
+      if (tombFilter && tombFilter.nextElementSibling !== addButton) tombFilter.insertAdjacentElement('afterend', addButton);
+      else if (!addButton.isConnected) bar.appendChild(addButton);
+    };
+
     const render = () => {
       const view = document.querySelector<HTMLElement>('.events-view');
       const heading = view?.querySelector<HTMLElement>('.events-heading');
       if (!view || !heading) return;
 
-      let addButton = heading.querySelector<HTMLButtonElement>('.tomb-event-add');
-      if (canEdit && !addButton) {
-        addButton = document.createElement('button');
-        addButton.type = 'button';
-        addButton.className = 'tomb-event-add';
-        addButton.textContent = '+ Chạp mộ';
-        addButton.addEventListener('click', () => openDialog());
-        heading.appendChild(addButton);
-      } else if (!canEdit && addButton) {
-        addButton.remove();
-      }
+      installAddButton(view);
 
       let list = view.querySelector<HTMLElement>('.tomb-sweeping-list');
       if (!list) {
@@ -208,13 +218,11 @@ export default function TombSweepingEvents() {
         try {
           const response = await fetch('/api/events/chapa', { cache: 'no-store' });
           if (!response.ok) throw new Error('Không tải được lịch Chạp mộ.');
-          const result = await response.json() as { events?: TombEvent[]; canEdit?: boolean };
+          const result = await response.json() as { events?: TombEvent[] };
           events = Array.isArray(result.events) ? result.events : [];
-          canEdit = result.canEdit === true;
           loaded = true;
         } catch {
           events = [];
-          canEdit = false;
           loaded = true;
         } finally {
           loading = null;
@@ -251,21 +259,23 @@ export default function TombSweepingEvents() {
       const nativeEmpty = document.querySelector<HTMLElement>('.events-empty');
       if (nativeEmpty) nativeEmpty.style.display = '';
     };
-  }, []);
+  }, [canEdit]);
 
   return <style>{`
     .tomb-event-add {
-      height: 34px;
+      min-width: max-content;
+      height: 36px;
       padding: 0 12px;
-      border: 1px solid #d6a83b;
+      border: 1px solid #e0b447;
       border-radius: 9px;
       background: linear-gradient(100deg,#851a12,#5d0d09);
       color: #ffe08a;
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 800;
       white-space: nowrap;
-      box-shadow: 0 0 10px #ffd45e20;
+      box-shadow: inset 0 -2px #e7bb4f, 0 0 10px #ffd45e28;
     }
+    .tomb-event-add:active { transform: scale(.97); }
     .tomb-sweeping-list { display: grid; }
     .family-tomb-event { position: relative; }
     .tomb-event-mark {
@@ -348,8 +358,7 @@ export default function TombSweepingEvents() {
     .tomb-save:disabled { opacity:.55; }
 
     @media(max-width:740px){
-      .events-heading { align-items:center; }
-      .tomb-event-add { height:32px; padding:0 9px; font-size:10px; }
+      .tomb-event-add { height:34px; padding:0 10px; font-size:10px; }
       .family-tomb-event { gap:8px !important; }
       .tomb-event-mark { width:32px; height:32px; font-size:14px; }
       .tomb-event-actions { width:100%; margin:6px 0 0; justify-content:flex-end; }
@@ -358,6 +367,7 @@ export default function TombSweepingEvents() {
       .tomb-event-form { grid-template-columns:1fr; gap:10px; }
       .tomb-note-field, .tomb-repeat-field, .tomb-form-message, .tomb-form-actions { grid-column:1; }
     }
+    .mode-mobile .tomb-event-add { height:34px; padding:0 10px; font-size:10px; }
     .mode-mobile .tomb-event-dialog { align-items:end; padding:0; }
     .mode-mobile .tomb-event-dialog-card { width:100%; max-height:88vh; border-radius:18px 18px 0 0; border-bottom:0; }
     .mode-mobile .tomb-event-form { grid-template-columns:1fr; gap:10px; }
