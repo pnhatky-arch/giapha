@@ -13,6 +13,8 @@ import {
 } from '@/lib/material-media';
 import { sampleMaterialMedia } from '@/lib/sample-fixtures';
 
+const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
+
 function parseRange(header: string | null, size: number) {
   if (!header || size <= 0) return null;
   const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
@@ -38,11 +40,20 @@ async function materialExists(itemId: string, sampleMode: boolean) {
   return Boolean(row?.id);
 }
 
+async function visibleMaterialIds(sampleMode: boolean) {
+  const scope = sampleMode ? "id LIKE 'sample-%'" : "id NOT LIKE 'sample-%'";
+  const rows = await getDatabase().prepare(`SELECT id FROM material_items WHERE ${scope}`).all<{ id: string }>();
+  return new Set(rows.results.map((row) => row.id));
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
+  const sampleMode = (await getFamilyDataMode()) === 'sample';
   const key = url.searchParams.get('key');
   if (key) {
     if (!isMaterialMediaKey(key)) return new Response('Not found', { status: 404 });
+    const parsed = parseMaterialMediaKey(key);
+    if (!parsed || !(await materialExists(parsed.itemId, sampleMode))) return new Response('Not found', { status: 404 });
     const meta = await getMaterialMediaMeta(key);
     if (!meta) return new Response('Not found', { status: 404 });
     const range = parseRange(request.headers.get('range'), meta.size);
@@ -63,20 +74,24 @@ export async function GET(request: Request) {
   }
 
   const itemId = url.searchParams.get('itemId')?.trim() || undefined;
-  const sampleMode = (await getFamilyDataMode()) === 'sample';
+  if (itemId && !(await materialExists(itemId, sampleMode))) {
+    return NextResponse.json({ message: 'Không tìm thấy tư liệu trong bộ dữ liệu hiện tại.', media: [], storageAvailable: true }, { status: 404 });
+  }
   const builtIn = sampleMode
     ? sampleMaterialMedia.filter((attachment) => !itemId || attachment.itemId === itemId)
     : [];
 
   try {
     const stored = await listMaterialMedia(itemId);
+    const visibleIds = itemId ? new Set([itemId]) : await visibleMaterialIds(sampleMode);
+    const scopedStored = stored.filter((attachment) => visibleIds.has(attachment.itemId));
     return NextResponse.json(
-      { media: [...builtIn, ...stored], storageAvailable: true, storage: 'd1-chunked' },
+      { media: [...builtIn, ...scopedStored], storageAvailable: true, storage: 'd1-chunked' },
       { headers: { 'Cache-Control': 'no-store, max-age=0' } },
     );
   } catch {
     return NextResponse.json(
-      { message: 'Không thể tải ảnh/video lúc này.', media: builtIn, storageAvailable: false },
+      { message: 'Không thể tải ảnh/video lúc này.', media: builtIn, storageAvailable: true, storage: 'd1-chunked' },
       { status: 503, headers: { 'Cache-Control': 'no-store, max-age=0' } },
     );
   }
@@ -95,6 +110,7 @@ export async function POST(request: Request) {
   if (!(file instanceof File) || file.size <= 0) return NextResponse.json({ message: 'Chưa chọn ảnh hoặc video.' }, { status: 400 });
   if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) return NextResponse.json({ message: 'Chỉ hỗ trợ tệp hình ảnh hoặc video.' }, { status: 400 });
   if (file.type === 'image/svg+xml') return NextResponse.json({ message: 'Không hỗ trợ SVG tải lên. Hãy dùng PNG, JPG, WEBP hoặc ảnh từ máy.' }, { status: 400 });
+  if (file.size > MAX_MEDIA_BYTES) return NextResponse.json({ message: 'Mỗi ảnh/video tối đa 20 MB để bảo đảm hệ thống phản hồi ổn định.' }, { status: 413 });
 
   try {
     const media = await putMaterialMedia({ itemId, file, uploadedBy: user.username, updatedById: user.id });
@@ -113,8 +129,9 @@ export async function DELETE(request: Request) {
   if (!body || typeof body.key !== 'string' || typeof body.itemId !== 'string') return NextResponse.json({ message: 'Thiếu ảnh/video cần xóa.' }, { status: 400 });
   if (body.key.startsWith('sample-static/')) return NextResponse.json({ message: 'Ảnh minh họa tích hợp của dữ liệu mẫu không thể xóa.' }, { status: 409 });
 
+  const sampleMode = (await getFamilyDataMode()) === 'sample';
   const parsed = parseMaterialMediaKey(body.key);
-  if (!parsed || parsed.itemId !== body.itemId) return NextResponse.json({ message: 'Ảnh/video không hợp lệ.' }, { status: 400 });
+  if (!parsed || parsed.itemId !== body.itemId || !(await materialExists(parsed.itemId, sampleMode))) return NextResponse.json({ message: 'Ảnh/video không hợp lệ trong bộ dữ liệu hiện tại.' }, { status: 400 });
   const meta = await getMaterialMediaMeta(body.key);
   if (!meta) return NextResponse.json({ message: 'Không tìm thấy ảnh/video.' }, { status: 404 });
 
