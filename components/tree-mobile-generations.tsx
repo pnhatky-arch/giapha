@@ -209,7 +209,8 @@ export default function TreeMobileGenerations() {
     .family-affinity-row{position:relative}.family-affinity-row:before{content:'';position:absolute;left:-10px;top:29px;width:10px;border-top:1px dashed #d7a83e99}
     .family-affinity-label{margin:0 0 4px;color:#f1c96b;font-size:8.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .family-affinity-card{background:linear-gradient(140deg,#f8ead0,#e8cf9b);border-style:dashed;box-shadow:0 3px 10px #24010022,inset 0 0 0 2px #fff8dc}
-    .family-children{margin:12px 0 0 8px;padding-left:9px;border-left:1.5px solid #d7a83e;display:grid;gap:13px}
+    .family-children{position:relative;margin:12px 0 0 8px;padding-left:9px;border-left:1.5px solid #d7a83e;display:grid;gap:13px}
+    .family-children:before{content:'';position:absolute;top:-12px;left:0;width:calc(50% - 4px);height:12px;border-right:1.5px solid #d7a83e;border-bottom:1.5px solid #d7a83e;pointer-events:none}
     .family-child-branch{position:relative;min-width:0}.family-child-branch:before{content:'';position:absolute;left:-9px;top:31px;width:9px;border-top:1.5px solid #d7a83e}
     .family-parent-label{margin:0 0 5px;padding-left:2px;color:#efc96f;font-size:8.5px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     @media(max-width:350px){.mobile-family-tree{padding-left:8px;padding-right:8px}.family-children{margin-left:5px;padding-left:7px}.family-child-branch:before{left:-7px;width:7px}.family-person-card{grid-template-columns:32px minmax(0,1fr) auto}.family-branch-avatar{width:32px;height:32px}}
