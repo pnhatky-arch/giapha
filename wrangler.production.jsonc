@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
+  "name": "giapha",
+  "compatibility_date": "2026-09-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "giapha-db",
+      "database_id": "93bbf887-b016-41a3-97e0-34801c56f68c",
+      "migrations_dir": "./drizzle"
+    }
+  ]
+}
