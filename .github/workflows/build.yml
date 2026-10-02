@@ -25,8 +25,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Security audit diagnostic
-        run: npm audit --json || true
+      - name: Security audit
+        run: npm audit --audit-level=moderate
 
       - name: Build
         run: npm run build
