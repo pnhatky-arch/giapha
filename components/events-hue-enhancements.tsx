@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 
 type EventFilter = 'all' | 'memorial' | 'birthday' | 'tomb';
+type TextSnapshot = { source: string; target: string };
+type AttributeSnapshot = { source: string; target: string };
 
 const HUE_REPLACEMENTS: Array<[string, string]> = [
   ['Ngày sinh nhật và ngày dỗ được lấy từ thông tin hồ sơ thành viên.', 'Ngày sinh và dỗ kỵ được lấy từ hồ sơ của bà con trong họ.'],
@@ -39,8 +41,8 @@ export default function EventsHueEnhancements() {
   useEffect(() => {
     let activeFilter: EventFilter = 'all';
     let syncFrame = 0;
-    const originalText = new WeakMap<Text, string>();
-    const originalAttributes = new WeakMap<Element, Map<string, string>>();
+    const textSnapshots = new WeakMap<Text, TextSnapshot>();
+    const attributeSnapshots = new WeakMap<Element, Map<string, AttributeSnapshot>>();
 
     const applyHueWording = () => {
       const vietnamese = isVietnameseUi();
@@ -49,27 +51,49 @@ export default function EventsHueEnhancements() {
       while (node) {
         const parent = node.parentElement;
         if (parent && !parent.closest('script,style')) {
-          if (!originalText.has(node)) originalText.set(node, node.data);
-          const source = originalText.get(node) ?? node.data;
-          const next = vietnamese ? hueText(source) : source;
-          if (node.data !== next) node.data = next;
+          const saved = textSnapshots.get(node);
+          if (!vietnamese) {
+            if (saved && node.data === saved.target) node.data = saved.source;
+            textSnapshots.delete(node);
+          } else if (saved && node.data === saved.target) {
+            // Already localized.
+          } else {
+            const source = node.data;
+            const target = hueText(source);
+            if (target !== source) {
+              textSnapshots.set(node, { source, target });
+              node.data = target;
+            } else if (saved) {
+              textSnapshots.delete(node);
+            }
+          }
         }
         node = walker.nextNode() as Text | null;
       }
 
       document.querySelectorAll<HTMLElement>('[placeholder],[aria-label],[title]').forEach((element) => {
-        let saved = originalAttributes.get(element);
-        if (!saved) {
-          saved = new Map<string, string>();
-          originalAttributes.set(element, saved);
+        let snapshots = attributeSnapshots.get(element);
+        if (!snapshots) {
+          snapshots = new Map<string, AttributeSnapshot>();
+          attributeSnapshots.set(element, snapshots);
         }
         for (const attribute of ['placeholder', 'aria-label', 'title']) {
           const current = element.getAttribute(attribute);
           if (current === null) continue;
-          if (!saved.has(attribute)) saved.set(attribute, current);
-          const source = saved.get(attribute) ?? current;
-          const next = vietnamese ? hueText(source) : source;
-          if (current !== next) element.setAttribute(attribute, next);
+          const saved = snapshots.get(attribute);
+          if (!vietnamese) {
+            if (saved && current === saved.target) element.setAttribute(attribute, saved.source);
+            snapshots.delete(attribute);
+            continue;
+          }
+          if (saved && current === saved.target) continue;
+          const target = hueText(current);
+          if (target !== current) {
+            snapshots.set(attribute, { source: current, target });
+            element.setAttribute(attribute, target);
+          } else if (saved) {
+            snapshots.delete(attribute);
+          }
         }
       });
     };
