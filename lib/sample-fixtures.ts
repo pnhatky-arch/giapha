@@ -1,4 +1,4 @@
-export const SAMPLE_FIXTURE_VERSION = '2026-10-02-v1';
+export const SAMPLE_FIXTURE_VERSION = '2026-10-02-v2';
 
 export type SampleTombSweepingEvent = {
   id: string;
@@ -34,6 +34,17 @@ export type SampleMaterialItem = {
   updated_by_username: string;
   created_at: number;
   updated_at: number;
+};
+
+export type SampleMaterialMedia = {
+  key: string;
+  itemId: string;
+  name: string;
+  type: string;
+  size: number;
+  uploadedAt: number;
+  uploadedBy: string;
+  url: string;
 };
 
 const BASE_TIME = Date.UTC(2026, 0, 1, 8, 0, 0);
@@ -113,7 +124,7 @@ export const sampleMaterialItems: SampleMaterialItem[] = [
   },
   {
     id: 'sample-note-nguon-goc', parent_id: 'sample-folder-pha-he', kind: 'note', title: 'Ghi chép nguồn gốc dòng họ',
-    content: 'Bản ghi thử nghiệm dùng để kiểm tra hiển thị nội dung dài, chỉnh sửa, tìm kiếm và phân loại tư liệu. Nội dung chính thức sẽ được thay bằng thông tin đã được gia tộc xác minh.',
+    content: 'Bản ghi thử nghiệm dùng để kiểm tra hiển thị nội dung dài, chỉnh sửa, tìm kiếm và phân loại tư liệu. Kèm hình minh họa sơ đồ gia phả cổ để kiểm tra hiển thị ảnh tư liệu.',
     created_by_username: 'sample', updated_by_username: 'sample', created_at: BASE_TIME + 4, updated_at: BASE_TIME + 4,
   },
   {
@@ -142,13 +153,42 @@ export const sampleMaterialItems: SampleMaterialItem[] = [
     created_by_username: 'sample', updated_by_username: 'sample', created_at: BASE_TIME + 9, updated_at: BASE_TIME + 9,
   },
   {
-    id: 'sample-note-anh-cu', parent_id: 'sample-folder-hinh-anh', kind: 'note', title: 'Mô tả album ảnh cũ',
-    content: 'Mục mẫu để thử gắn ảnh/video từ R2, chỉnh tiêu đề và kiểm tra danh sách media.',
+    id: 'sample-note-anh-cu', parent_id: 'sample-folder-hinh-anh', kind: 'note', title: 'Họp họ và đối chiếu tư liệu cũ',
+    content: 'Hình minh họa buổi họp gia tộc với sổ gia phả, biên bản và ảnh cũ. Dùng để thử hiển thị ảnh đính kèm trong kho tư liệu.',
     created_by_username: 'sample', updated_by_username: 'sample', created_at: BASE_TIME + 10, updated_at: BASE_TIME + 10,
   },
   {
     id: 'sample-link-ban-do', parent_id: 'sample-folder-hinh-anh', kind: 'link', title: 'Bản đồ khu mộ tham khảo',
     content: 'https://www.openstreetmap.org/',
     created_by_username: 'sample', updated_by_username: 'sample', created_at: BASE_TIME + 11, updated_at: BASE_TIME + 11,
+  },
+  {
+    id: 'sample-note-tu-duong', parent_id: 'sample-folder-hinh-anh', kind: 'note', title: 'Không gian từ đường và bàn thờ tổ',
+    content: 'Hình minh họa bố trí bàn thờ tổ, bài vị, lư hương và đồ thờ trong từ đường. Dùng để kiểm tra ảnh tư liệu nghi lễ và kiến trúc.',
+    created_by_username: 'sample', updated_by_username: 'sample', created_at: BASE_TIME + 12, updated_at: BASE_TIME + 12,
+  },
+  {
+    id: 'sample-note-chap-mo', parent_id: 'sample-folder-hinh-anh', kind: 'note', title: 'Chạp mộ gia tộc',
+    content: 'Hình minh họa khu mộ tổ, hương hoa và con cháu tưởng niệm. Dùng để kiểm tra tư liệu hình ảnh liên quan Chạp mộ.',
+    created_by_username: 'sample', updated_by_username: 'sample', created_at: BASE_TIME + 13, updated_at: BASE_TIME + 13,
+  },
+];
+
+export const sampleMaterialMedia: SampleMaterialMedia[] = [
+  {
+    key: 'sample-static/gia-pha-co.svg', itemId: 'sample-note-nguon-goc', name: 'Gia phả cổ minh họa.svg',
+    type: 'image/svg+xml', size: 4200, uploadedAt: BASE_TIME + 100, uploadedBy: 'sample', url: '/sample-materials/gia-pha-co.svg',
+  },
+  {
+    key: 'sample-static/tu-duong.svg', itemId: 'sample-note-tu-duong', name: 'Không gian từ đường.svg',
+    type: 'image/svg+xml', size: 3900, uploadedAt: BASE_TIME + 101, uploadedBy: 'sample', url: '/sample-materials/tu-duong.svg',
+  },
+  {
+    key: 'sample-static/chap-mo.svg', itemId: 'sample-note-chap-mo', name: 'Chạp mộ gia tộc.svg',
+    type: 'image/svg+xml', size: 3600, uploadedAt: BASE_TIME + 102, uploadedBy: 'sample', url: '/sample-materials/chap-mo.svg',
+  },
+  {
+    key: 'sample-static/hop-ho-tu-lieu.svg', itemId: 'sample-note-anh-cu', name: 'Họp họ và tư liệu cũ.svg',
+    type: 'image/svg+xml', size: 4100, uploadedAt: BASE_TIME + 103, uploadedBy: 'sample', url: '/sample-materials/hop-ho-tu-lieu.svg',
   },
 ];
