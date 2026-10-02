@@ -7,7 +7,7 @@ type TextSnapshot = { source: string; target: string };
 type AttributeSnapshot = { source: string; target: string };
 
 const HUE_REPLACEMENTS: Array<[string, string]> = [
-  ['Ngày sinh nhật và ngày dỗ được lấy từ thông tin hồ sơ thành viên.', 'Ngày sinh và dỗ kỵ được lấy từ hồ sơ của bà con trong họ.'],
+  ['Ngày sinh nhật và ngày dỗ được lấy từ thông tin hồ sơ thành viên.', 'Ngày sinh và ngày kỵ được lấy từ hồ sơ của bà con trong họ.'],
   ['Khách tham quan chỉ được xem cây gia phả và không thể mở Cài đặt hoặc chỉnh sửa dữ liệu.', 'Khách chỉ coi được cây gia phả, không mở Cài đặt hay sửa dữ liệu.'],
   ['Hãy thêm ngày sinh hoặc ngày mất và ngày dỗ trong hồ sơ thành viên.', 'Thêm ngày sinh, ngày mất và ngày kỵ vô hồ sơ thành viên.'],
   ['Thành viên mới sẽ được thêm vào nhánh đã chọn.', 'Người mới sẽ được thêm vô nhánh đã chọn.'],
@@ -23,7 +23,7 @@ const HUE_REPLACEMENTS: Array<[string, string]> = [
   ['Thêm vào gia phả', 'Thêm vô gia phả'],
   ['Lặp lại hằng năm', 'Hằng năm'],
   ['Khách tham quan', 'Khách coi gia phả'],
-  ['Ngày dỗ', 'Dỗ kỵ'],
+  ['Ngày dỗ', 'Ngày kỵ'],
   ['Quay lại', 'Trở lui'],
   ['Tiếp tục xem', 'Coi tiếp'],
 ].sort((a, b) => b[0].length - a[0].length);
@@ -127,13 +127,13 @@ export default function EventsHueEnhancements() {
       if (empty) {
         empty.hidden = visible > 0;
         if (activeFilter === 'tomb') {
-          empty.innerHTML = '<strong>Chưa có ngày tảo mộ được ghi</strong><span>Khi bổ sung lịch tảo mộ, mục ni sẽ hiện ở đây.</span>';
+          empty.innerHTML = '<strong>Chưa có ngày Chạp mộ được ghi</strong><span>Khi bổ sung lịch Chạp mộ, mục ni sẽ hiện ở đây.</span>';
         } else if (activeFilter === 'memorial') {
-          empty.innerHTML = '<strong>Chưa có dỗ kỵ trong mục ni</strong><span>Bổ sung ngày kỵ trong hồ sơ người thân để hiện lịch.</span>';
+          empty.innerHTML = '<strong>Chưa có ngày kỵ trong mục ni</strong><span>Bổ sung ngày kỵ trong hồ sơ người thân để hiện lịch.</span>';
         } else if (activeFilter === 'birthday') {
           empty.innerHTML = '<strong>Chưa có sinh nhật trong mục ni</strong><span>Bổ sung ngày sinh trong hồ sơ người thân để hiện lịch.</span>';
         } else {
-          empty.innerHTML = '<strong>Chưa có việc họ nào được ghi</strong><span>Bổ sung ngày sinh, dỗ kỵ hoặc lịch tảo mộ để theo dõi.</span>';
+          empty.innerHTML = '<strong>Chưa có việc họ nào được ghi</strong><span>Bổ sung ngày sinh, ngày kỵ hoặc lịch Chạp mộ để theo dõi.</span>';
         }
       }
     };
@@ -154,9 +154,9 @@ export default function EventsHueEnhancements() {
         bar.setAttribute('aria-label', 'Lọc việc họ');
         const filters: Array<[EventFilter, string, number]> = [
           ['all', 'Tất cả', counts.memorial + counts.birthday + counts.tomb],
-          ['memorial', 'Dỗ kỵ', counts.memorial],
+          ['memorial', 'Ngày kỵ', counts.memorial],
           ['birthday', 'Sinh nhật', counts.birthday],
-          ['tomb', 'Tảo mộ', counts.tomb],
+          ['tomb', 'Chạp mộ', counts.tomb],
         ];
         filters.forEach(([filter, label, count]) => {
           const button = document.createElement('button');
