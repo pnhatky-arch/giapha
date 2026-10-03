@@ -2,147 +2,34 @@
 
 import { useEffect } from 'react';
 
-const CARD_SELECTOR = [
-  '.setting-card',
-  '.notification-settings-card',
-  '.admin-config-card',
-  '.account-manager',
-  '.audit-log-card',
-].join(',');
+const CARD_SELECTOR = ['.setting-card','.notification-settings-card','.admin-config-card','.account-manager','.audit-log-card'].join(',');
+function cardHeader(card:HTMLElement){return card.classList.contains('setting-card')?card.querySelector<HTMLElement>(':scope > .setting-copy'):card.querySelector<HTMLElement>(':scope > .config-title');}
+function isInteractiveTarget(target:EventTarget|null){return target instanceof Element&&Boolean(target.closest('button,input,select,textarea,a,label,[role="switch"]'));}
 
-function cardHeader(card: HTMLElement) {
-  if (card.classList.contains('setting-card')) {
-    return card.querySelector<HTMLElement>(':scope > .setting-copy');
-  }
-  return card.querySelector<HTMLElement>(':scope > .config-title');
-}
-
-function isInteractiveTarget(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest('button,input,select,textarea,a,label,[role="switch"]'));
-}
-
-export default function SettingsCollapseCards() {
-  useEffect(() => {
-    const cleanups: Array<() => void> = [];
-
-    const setCollapsed = (card: HTMLElement, header: HTMLElement, collapsed: boolean) => {
-      card.classList.toggle('is-settings-collapsed', collapsed);
-      card.classList.toggle('is-settings-expanded', !collapsed);
-      header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-    };
-
-    const installCard = (card: HTMLElement) => {
-      if (card.dataset.settingsCollapseReady === '1') return;
-      const header = cardHeader(card);
-      if (!header) return;
-
-      card.dataset.settingsCollapseReady = '1';
-      header.dataset.settingsCollapseReady = '1';
-      card.classList.add('settings-collapse-card');
-      header.classList.add('settings-collapse-header');
-      header.setAttribute('role', 'button');
-      header.setAttribute('tabindex', '0');
-      header.setAttribute('aria-label', `${header.querySelector('h3,strong')?.textContent?.trim() || 'Cài đặt'}: mở hoặc thu gọn`);
-      setCollapsed(card, header, true);
-
-      const toggle = () => setCollapsed(card, header, !card.classList.contains('is-settings-collapsed'));
-      const onClick = (event: MouseEvent) => {
-        if (isInteractiveTarget(event.target)) return;
-        toggle();
-      };
-      const onKeyDown = (event: KeyboardEvent) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        if (isInteractiveTarget(event.target) && event.target !== header) return;
-        event.preventDefault();
-        toggle();
-      };
-      header.addEventListener('click', onClick);
-      header.addEventListener('keydown', onKeyDown);
-      cleanups.push(() => {
-        header.removeEventListener('click', onClick);
-        header.removeEventListener('keydown', onKeyDown);
-      });
-    };
-
-    document.querySelectorAll<HTMLElement>(CARD_SELECTOR).forEach(installCard);
-
-    const collapseAll = () => {
-      document.querySelectorAll<HTMLElement>(CARD_SELECTOR).forEach((card) => {
-        installCard(card);
-        const header = cardHeader(card);
-        if (header) setCollapsed(card, header, true);
-      });
-    };
-
-    const handleTabClick = (event: MouseEvent) => {
-      const target = event.target instanceof Element ? event.target : null;
-      const clickable = target?.closest('button,a,[role="tab"]');
-      if (!clickable) return;
-      const label = (clickable.textContent || '').trim().toLocaleLowerCase('vi');
-      if (!label.includes('cài đặt')) return;
-      window.setTimeout(collapseAll, 0);
-    };
-
-    document.addEventListener('click', handleTabClick, true);
-    return () => {
-      document.removeEventListener('click', handleTabClick, true);
-      cleanups.forEach((cleanup) => cleanup());
-    };
-  }, []);
-
-  return <style>{`
-    .settings-collapse-card { transition: border-color .18s ease, box-shadow .18s ease, background .18s ease; }
-    .settings-grid,.advanced-admin,.admin-config-grid { row-gap:14px!important;gap:14px!important; }
-    .advanced-admin { margin-bottom:0!important;padding-bottom:0!important; }
-    .advanced-admin + .audit-log-card { margin-top:0!important; }
-
-    .settings-collapse-card.is-settings-collapsed {
-      box-sizing:border-box!important;width:100%!important;height:64px!important;min-height:64px!important;max-height:64px!important;
-      padding:0 20px!important;overflow:hidden!important;align-items:center!important;align-content:center!important;
-      border:1px solid #d8aa3e42!important;border-radius:16px!important;
-      background:linear-gradient(120deg,#570b08e8,#3b0605df)!important;box-shadow:0 14px 35px #24010044!important;
-    }
-    .settings-collapse-card.is-settings-collapsed > .settings-collapse-header { margin-top:0!important;margin-bottom:0!important;align-self:center!important; }
-
-    .setting-card.settings-collapse-card > .setting-icon,
-    .local-data-center .setting-card > .setting-icon {
-      width:28px!important;height:28px!important;min-width:28px!important;display:grid!important;place-items:center!important;
-      border:0!important;border-radius:0!important;background:none!important;background-color:transparent!important;background-image:none!important;
-      box-shadow:none!important;outline:0!important;padding:0!important;color:#efcc6c!important;
-    }
-    .setting-card.settings-collapse-card > .setting-icon svg,
-    .local-data-center .setting-card > .setting-icon svg { width:25px!important;height:25px!important;stroke-width:1.8!important; }
-    .local-data-center .setting-card > .setting-icon::before,
-    .local-data-center .setting-card > .setting-icon::after { display:none!important;content:none!important; }
-
-    .settings-collapse-header { position:relative;min-width:0;padding-right:36px!important;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none; }
-    .settings-collapse-header::after {
-      content:'⌄';position:absolute;top:50%;right:2px;width:28px;height:28px;display:grid;place-items:center;transform:translateY(-50%);
-      border:1px solid #b98332;border-radius:999px;background:#3a0705b8;color:#e8c66c;font-size:16px;line-height:1;box-shadow:inset 0 1px #f7dd8c20;pointer-events:none;
-    }
-    .settings-collapse-card.is-settings-expanded > .settings-collapse-header::after,
-    .setting-card.is-settings-expanded > .setting-copy.settings-collapse-header::after { content:'⌃'; }
-
-    .setting-card.settings-collapse-card.is-settings-collapsed { grid-template-columns:28px minmax(0,1fr)!important;gap:16px!important;align-items:center!important; }
-    .setting-card.settings-collapse-card.is-settings-collapsed > :not(.setting-icon):not(.setting-copy) { display:none!important; }
-    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy > :not(h3) { display:none!important; }
-    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy { align-self:center!important;margin:0!important; }
-    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy h3 { margin:0!important;line-height:1.15!important; }
-
-    .notification-settings-card.settings-collapse-card.is-settings-collapsed > :not(.config-title),
-    .admin-config-card.settings-collapse-card.is-settings-collapsed > :not(.config-title),
-    .account-manager.settings-collapse-card.is-settings-collapsed > :not(.config-title),
-    .audit-log-card.settings-collapse-card.is-settings-collapsed > :not(.config-title) { display:none!important; }
-    .settings-collapse-card.is-settings-collapsed .config-title { margin-bottom:0!important; }
-    .settings-collapse-card.is-settings-collapsed .config-title > button,
-    .settings-collapse-card.is-settings-collapsed .config-title [role='button'] { display:none!important; }
-
-    @media(max-width:740px){
-      .advanced-admin{padding-bottom:0!important}
-      .settings-collapse-card.is-settings-collapsed{height:64px!important;min-height:64px!important;max-height:64px!important;padding:0 18px!important}
-      .setting-card.settings-collapse-card.is-settings-collapsed{gap:14px!important}
-      .settings-collapse-header{padding-right:34px!important}
-      .settings-collapse-header::after{right:0;width:27px;height:27px;font-size:15px}
-    }
-  `}</style>;
+export default function SettingsCollapseCards(){
+ useEffect(()=>{
+  const cleanups:Array<()=>void>=[];
+  const setCollapsed=(card:HTMLElement,header:HTMLElement,collapsed:boolean)=>{card.classList.toggle('is-settings-collapsed',collapsed);card.classList.toggle('is-settings-expanded',!collapsed);header.setAttribute('aria-expanded',collapsed?'false':'true');};
+  const installCard=(card:HTMLElement)=>{if(card.dataset.settingsCollapseReady==='1')return;const header=cardHeader(card);if(!header)return;card.dataset.settingsCollapseReady='1';header.dataset.settingsCollapseReady='1';card.classList.add('settings-collapse-card');header.classList.add('settings-collapse-header');header.setAttribute('role','button');header.setAttribute('tabindex','0');header.setAttribute('aria-label',`${header.querySelector('h3,strong')?.textContent?.trim()||'Cài đặt'}: mở hoặc thu gọn`);setCollapsed(card,header,true);const toggle=()=>setCollapsed(card,header,!card.classList.contains('is-settings-collapsed'));const onClick=(event:MouseEvent)=>{if(!isInteractiveTarget(event.target))toggle();};const onKeyDown=(event:KeyboardEvent)=>{if(event.key!=='Enter'&&event.key!==' ')return;if(isInteractiveTarget(event.target)&&event.target!==header)return;event.preventDefault();toggle();};header.addEventListener('click',onClick);header.addEventListener('keydown',onKeyDown);cleanups.push(()=>{header.removeEventListener('click',onClick);header.removeEventListener('keydown',onKeyDown);});};
+  document.querySelectorAll<HTMLElement>(CARD_SELECTOR).forEach(installCard);
+  const collapseAll=()=>document.querySelectorAll<HTMLElement>(CARD_SELECTOR).forEach(card=>{installCard(card);const header=cardHeader(card);if(header)setCollapsed(card,header,true);});
+  const handleTabClick=(event:MouseEvent)=>{const target=event.target instanceof Element?event.target:null;const clickable=target?.closest('button,a,[role="tab"]');if(!clickable)return;const label=(clickable.textContent||'').trim().toLocaleLowerCase('vi');if(label.includes('cài đặt'))window.setTimeout(collapseAll,0);};
+  document.addEventListener('click',handleTabClick,true);return()=>{document.removeEventListener('click',handleTabClick,true);cleanups.forEach(fn=>fn());};
+ },[]);
+ return <style>{`
+  .settings-grid,.advanced-admin,.admin-config-grid,.local-data-center{gap:14px!important;row-gap:14px!important}
+  .advanced-admin{margin-bottom:0!important;padding-bottom:0!important}.advanced-admin+.audit-log-card{margin-top:0!important}
+  /* The original data-management shell is retained only as a mount reference. Never render its now-empty card. */
+  .setting-card.data-management[data-local-first="true"]{display:none!important;margin:0!important;padding:0!important;height:0!important;min-height:0!important;border:0!important;box-shadow:none!important}
+  .local-data-management-mount{margin:0!important;padding:0!important}
+  .settings-collapse-card{transition:border-color .18s ease,box-shadow .18s ease,background .18s ease}
+  .settings-collapse-card.is-settings-collapsed{box-sizing:border-box!important;width:100%!important;height:64px!important;min-height:64px!important;max-height:64px!important;padding:0 20px!important;overflow:hidden!important;align-items:center!important;align-content:center!important;border:1px solid #d8aa3e42!important;border-radius:16px!important;background:linear-gradient(120deg,#570b08e8,#3b0605df)!important;box-shadow:0 14px 35px #24010044!important}
+  .settings-collapse-card.is-settings-collapsed>.settings-collapse-header{margin:0!important;align-self:center!important}
+  .setting-card.settings-collapse-card>.setting-icon,.local-data-center .setting-card>.setting-icon{width:28px!important;height:28px!important;min-width:28px!important;display:grid!important;place-items:center!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;padding:0!important;color:#efcc6c!important}
+  .setting-card.settings-collapse-card>.setting-icon svg,.local-data-center .setting-card>.setting-icon svg{width:25px!important;height:25px!important;stroke-width:1.8!important}.local-data-center .setting-card>.setting-icon:before,.local-data-center .setting-card>.setting-icon:after{display:none!important;content:none!important}
+  .settings-collapse-header{position:relative;min-width:0;padding-right:36px!important;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}.settings-collapse-header:after{content:'⌄';position:absolute;top:50%;right:2px;width:28px;height:28px;display:grid;place-items:center;transform:translateY(-50%);border:1px solid #b98332;border-radius:999px;background:#3a0705b8;color:#e8c66c;font-size:16px;line-height:1;box-shadow:inset 0 1px #f7dd8c20;pointer-events:none}.settings-collapse-card.is-settings-expanded>.settings-collapse-header:after,.setting-card.is-settings-expanded>.setting-copy.settings-collapse-header:after{content:'⌃'}
+  .setting-card.settings-collapse-card.is-settings-collapsed{grid-template-columns:28px minmax(0,1fr)!important;gap:14px!important;align-items:center!important}.setting-card.settings-collapse-card.is-settings-collapsed>:not(.setting-icon):not(.setting-copy){display:none!important}.setting-card.settings-collapse-card.is-settings-collapsed>.setting-copy>:not(h3){display:none!important}.setting-card.settings-collapse-card.is-settings-collapsed>.setting-copy{align-self:center!important;margin:0!important}.setting-card.settings-collapse-card.is-settings-collapsed>.setting-copy h3{margin:0!important;font-family:var(--font-serif)!important;font-size:20px!important;font-weight:500!important;line-height:1.15!important;letter-spacing:0!important;color:#f2d784!important}
+  .notification-settings-card.settings-collapse-card.is-settings-collapsed>:not(.config-title),.admin-config-card.settings-collapse-card.is-settings-collapsed>:not(.config-title),.account-manager.settings-collapse-card.is-settings-collapsed>:not(.config-title),.audit-log-card.settings-collapse-card.is-settings-collapsed>:not(.config-title){display:none!important}.settings-collapse-card.is-settings-collapsed .config-title{margin:0!important;min-height:0!important}.settings-collapse-card.is-settings-collapsed .config-title>button,.settings-collapse-card.is-settings-collapsed .config-title [role='button']{display:none!important}.settings-collapse-card.is-settings-collapsed .config-title h3,.settings-collapse-card.is-settings-collapsed .config-title strong{margin:0!important;font-family:var(--font-serif)!important;font-size:20px!important;font-weight:500!important;line-height:1.15!important;letter-spacing:0!important;color:#f2d784!important}
+  @media(max-width:740px){.advanced-admin{padding-bottom:0!important}.settings-collapse-card.is-settings-collapsed{height:64px!important;min-height:64px!important;max-height:64px!important;padding:0 18px!important}.settings-collapse-header{padding-right:34px!important}.settings-collapse-header:after{right:0;width:27px;height:27px;font-size:15px}.setting-card.settings-collapse-card.is-settings-collapsed>.setting-copy h3,.settings-collapse-card.is-settings-collapsed .config-title h3,.settings-collapse-card.is-settings-collapsed .config-title strong{font-size:20px!important}}
+ `}</style>;
 }
