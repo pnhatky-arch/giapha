@@ -121,6 +121,24 @@ export default function SettingsCollapseCards() {
       margin-top: 0 !important;
     }
 
+    /* All collapsed cards use exactly the same outer size. */
+    .settings-collapse-card.is-settings-collapsed {
+      box-sizing: border-box !important;
+      width: 100% !important;
+      height: 64px !important;
+      min-height: 64px !important;
+      max-height: 64px !important;
+      padding: 0 20px !important;
+      overflow: hidden !important;
+      align-items: center !important;
+      align-content: center !important;
+    }
+    .settings-collapse-card.is-settings-collapsed > .settings-collapse-header {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+      align-self: center !important;
+    }
+
     .settings-collapse-header {
       position: relative;
       min-width: 0;
@@ -161,7 +179,6 @@ export default function SettingsCollapseCards() {
     .setting-card.settings-collapse-card.is-settings-collapsed {
       grid-template-columns: auto minmax(0,1fr) !important;
       align-items: center !important;
-      min-height: 64px;
     }
     .setting-card.settings-collapse-card.is-settings-collapsed > :not(.setting-icon):not(.setting-copy) {
       display: none !important;
@@ -192,16 +209,15 @@ export default function SettingsCollapseCards() {
       display: none !important;
     }
 
-    .notification-settings-card.settings-collapse-card.is-settings-collapsed,
-    .admin-config-card.settings-collapse-card.is-settings-collapsed,
-    .account-manager.settings-collapse-card.is-settings-collapsed,
-    .audit-log-card.settings-collapse-card.is-settings-collapsed {
-      min-height: 58px;
-    }
-
     @media (max-width: 740px) {
       .advanced-admin {
         padding-bottom: 0 !important;
+      }
+      .settings-collapse-card.is-settings-collapsed {
+        height: 64px !important;
+        min-height: 64px !important;
+        max-height: 64px !important;
+        padding: 0 18px !important;
       }
       .settings-collapse-header {
         padding-right: 34px !important;
@@ -211,9 +227,6 @@ export default function SettingsCollapseCards() {
         width: 27px;
         height: 27px;
         font-size: 15px;
-      }
-      .setting-card.settings-collapse-card.is-settings-collapsed {
-        min-height: 58px;
       }
     }
   `}</style>;
