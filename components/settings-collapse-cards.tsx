@@ -3,18 +3,18 @@
 import { useEffect } from 'react';
 
 const CARD_SELECTOR = [
-  '.settings-view .setting-card',
-  '.settings-view .notification-settings-card',
-  '.settings-view .admin-config-card',
-  '.settings-view .account-manager',
-  '.settings-view .audit-log-card',
+  '.setting-card',
+  '.notification-settings-card',
+  '.admin-config-card',
+  '.account-manager',
+  '.audit-log-card',
 ].join(',');
 
 function cardHeader(card: HTMLElement) {
   if (card.classList.contains('setting-card')) {
-    return card.querySelector<HTMLElement>('.setting-copy');
+    return card.querySelector<HTMLElement>(':scope > .setting-copy');
   }
-  return card.querySelector<HTMLElement>('.config-title');
+  return card.querySelector<HTMLElement>(':scope > .config-title');
 }
 
 function isInteractiveTarget(target: EventTarget | null) {
@@ -37,7 +37,7 @@ export default function SettingsCollapseCards() {
       header.classList.add('settings-collapse-header');
       header.setAttribute('role', 'button');
       header.setAttribute('tabindex', '0');
-      header.setAttribute('aria-expanded', card.classList.contains('is-settings-expanded') ? 'true' : 'false');
+      header.setAttribute('aria-expanded', 'false');
       header.setAttribute('aria-label', `${header.querySelector('h3,strong')?.textContent?.trim() || 'Cài đặt'}: mở hoặc thu gọn`);
 
       const toggle = () => setCollapsed(card, header, !card.classList.contains('is-settings-collapsed'));
@@ -64,6 +64,15 @@ export default function SettingsCollapseCards() {
       installHeader(card, header);
     };
 
+    const collapseAll = () => {
+      document.querySelectorAll<HTMLElement>(CARD_SELECTOR).forEach((card) => {
+        const header = cardHeader(card);
+        if (!header) return;
+        installCard(card);
+        setCollapsed(card, header, true);
+      });
+    };
+
     const sync = () => {
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
@@ -71,22 +80,33 @@ export default function SettingsCollapseCards() {
       });
     };
 
+    const handleTabClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const clickable = target?.closest('button,a,[role="tab"]');
+      if (!clickable) return;
+      const label = (clickable.textContent || '').trim().toLocaleLowerCase('vi');
+      if (label !== 'cài đặt' && !label.includes('cài đặt')) return;
+      window.setTimeout(collapseAll, 0);
+    };
+
     const observer = new MutationObserver(sync);
     observer.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('click', handleTabClick, true);
     sync();
 
     return () => {
       observer.disconnect();
+      document.removeEventListener('click', handleTabClick, true);
       window.cancelAnimationFrame(frame);
     };
   }, []);
 
   return <style>{`
-    .settings-view .settings-collapse-card {
+    .settings-collapse-card {
       transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
     }
 
-    .settings-view .settings-collapse-header {
+    .settings-collapse-header {
       position: relative;
       min-width: 0;
       padding-right: 36px !important;
@@ -95,7 +115,7 @@ export default function SettingsCollapseCards() {
       user-select: none;
       -webkit-user-select: none;
     }
-    .settings-view .settings-collapse-header::after {
+    .settings-collapse-header::after {
       content: '⌄';
       position: absolute;
       top: 50%;
@@ -115,65 +135,63 @@ export default function SettingsCollapseCards() {
       transition: transform .18s ease, background .18s ease;
       pointer-events: none;
     }
-    .settings-view .settings-collapse-card.is-settings-expanded > .settings-collapse-header::after,
-    .settings-view .setting-card.is-settings-expanded > .setting-copy.settings-collapse-header::after {
+    .settings-collapse-card.is-settings-expanded > .settings-collapse-header::after,
+    .setting-card.is-settings-expanded > .setting-copy.settings-collapse-header::after {
       content: '⌃';
     }
-    .settings-view .settings-collapse-header:active::after {
+    .settings-collapse-header:active::after {
       background: #64110de0;
     }
 
-    /* Main settings cards keep only their icon + title while collapsed. */
-    .settings-view .setting-card.settings-collapse-card.is-settings-collapsed {
+    .setting-card.settings-collapse-card.is-settings-collapsed {
       grid-template-columns: auto minmax(0,1fr) !important;
       align-items: center !important;
       min-height: 64px;
     }
-    .settings-view .setting-card.settings-collapse-card.is-settings-collapsed > :not(.setting-icon):not(.setting-copy) {
+    .setting-card.settings-collapse-card.is-settings-collapsed > :not(.setting-icon):not(.setting-copy) {
       display: none !important;
     }
-    .settings-view .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy > :not(h3) {
+    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy > :not(h3) {
       display: none !important;
     }
-    .settings-view .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy {
+    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy {
       align-self: center !important;
       margin: 0 !important;
     }
-    .settings-view .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy h3 {
+    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy h3 {
       margin: 0 !important;
     }
 
-    /* Other settings cards already have a dedicated title row. */
-    .settings-view .notification-settings-card.settings-collapse-card.is-settings-collapsed > :not(.config-title),
-    .settings-view .admin-config-card.settings-collapse-card.is-settings-collapsed > :not(.config-title),
-    .settings-view .account-manager.settings-collapse-card.is-settings-collapsed > :not(.config-title),
-    .settings-view .audit-log-card.settings-collapse-card.is-settings-collapsed > :not(.config-title) {
+    .notification-settings-card.settings-collapse-card.is-settings-collapsed > :not(.config-title),
+    .admin-config-card.settings-collapse-card.is-settings-collapsed > :not(.config-title),
+    .account-manager.settings-collapse-card.is-settings-collapsed > :not(.config-title),
+    .audit-log-card.settings-collapse-card.is-settings-collapsed > :not(.config-title) {
       display: none !important;
     }
 
-    .settings-view .settings-collapse-card.is-settings-collapsed .config-title > button,
-    .settings-view .settings-collapse-card.is-settings-collapsed .config-title [role='button'] {
+    .settings-collapse-card.is-settings-collapsed .config-title > button,
+    .settings-collapse-card.is-settings-collapsed .config-title [role='button'] {
       display: none !important;
     }
 
-    .settings-view .notification-settings-card.settings-collapse-card.is-settings-collapsed,
-    .settings-view .admin-config-card.settings-collapse-card.is-settings-collapsed,
-    .settings-view .account-manager.settings-collapse-card.is-settings-collapsed,
-    .settings-view .audit-log-card.settings-collapse-card.is-settings-collapsed {
+    .notification-settings-card.settings-collapse-card.is-settings-collapsed,
+    .admin-config-card.settings-collapse-card.is-settings-collapsed,
+    .account-manager.settings-collapse-card.is-settings-collapsed,
+    .audit-log-card.settings-collapse-card.is-settings-collapsed {
       min-height: 58px;
     }
 
     @media (max-width: 740px) {
-      .settings-view .settings-collapse-header {
+      .settings-collapse-header {
         padding-right: 34px !important;
       }
-      .settings-view .settings-collapse-header::after {
+      .settings-collapse-header::after {
         right: 0;
         width: 27px;
         height: 27px;
         font-size: 15px;
       }
-      .settings-view .setting-card.settings-collapse-card.is-settings-collapsed {
+      .setting-card.settings-collapse-card.is-settings-collapsed {
         min-height: 58px;
       }
     }
