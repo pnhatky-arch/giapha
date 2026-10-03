@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Lora, Manrope } from 'next/font/google';
 import './globals.css';
+import './hue-overview.css';
 
 const sans = Manrope({ variable: '--font-sans', subsets: ['latin', 'vietnamese'] });
 const serif = Lora({ variable: '--font-serif', subsets: ['latin', 'vietnamese'] });
