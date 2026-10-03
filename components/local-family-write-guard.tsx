@@ -1,30 +1,10 @@
 'use client';
 import { useEffect } from 'react';
-import { queueFamilySnapshot, readLocalWorkspace } from '@/lib/local-data-workspace';
+import { queueFamilySnapshot,readLocalWorkspace,writeLocalWorkspace } from '@/lib/local-data-workspace';
 
-export default function LocalFamilyWriteGuard(){
-  useEffect(()=>{
-    const nativeFetch=window.fetch.bind(window);
-    window.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
-      const url=typeof input==='string'?input:input instanceof URL?input.toString():input.url;
-      const method=(init?.method||(typeof input!=='string'&&!(input instanceof URL)?input.method:'GET')).toUpperCase();
-      if(url.endsWith('/api/family')&&(method==='PUT'||method==='DELETE')){
-        if(method==='DELETE'){
-          queueFamilySnapshot(null,'Xóa dữ liệu gia phả local',readLocalWorkspace().family,'empty');
-          return new Response(JSON.stringify({ok:true,family:null,dataMode:'empty',localOnly:true}),{status:200,headers:{'content-type':'application/json'}});
-        }
-        try{
-          const body=JSON.parse(String(init?.body||'{}')) as {family?:unknown;dataMode?:'sample'|'official'|'empty';activity?:{action?:string}};
-          if(!body.family)return new Response(JSON.stringify({message:'Dữ liệu gia phả local không hợp lệ.'}),{status:400,headers:{'content-type':'application/json'}});
-          const current=readLocalWorkspace();
-          const mode=body.dataMode||current.familyDataMode||'official';
-          queueFamilySnapshot(body.family,body.activity?.action||'Cập nhật gia phả local',current.family,mode);
-          return new Response(JSON.stringify({ok:true,family:body.family,dataMode:mode,localOnly:true}),{status:200,headers:{'content-type':'application/json'}});
-        }catch{return new Response(JSON.stringify({message:'Dữ liệu gia phả local không hợp lệ.'}),{status:400,headers:{'content-type':'application/json'}});}
-      }
-      return nativeFetch(input,init);
-    }) as typeof window.fetch;
-    return()=>{window.fetch=nativeFetch;};
-  },[]);
-  return null;
-}
+function jsonResponse(data:unknown,status=200){return new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json','cache-control':'no-store'}});}
+export default function LocalFamilyWriteGuard(){useEffect(()=>{const nativeFetch=window.fetch.bind(window);window.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{const url=typeof input==='string'?input:input instanceof URL?input.toString():input.url;const method=(init?.method||(typeof input!=='string'&&!(input instanceof URL)?input.method:'GET')).toUpperCase();if(!url.endsWith('/api/family'))return nativeFetch(input,init);
+ if(method==='GET'){const response=await nativeFetch(input,init);if(!response.ok)return response;const shared=await response.clone().json() as {family?:unknown;dataMode?:'sample'|'official'|'empty'};const current=readLocalWorkspace();const hasLocalFamily=Object.prototype.hasOwnProperty.call(current,'family');if(hasLocalFamily)return jsonResponse({family:current.family??null,dataMode:current.familyDataMode||shared.dataMode||'official',localOnly:true});if('family' in shared){writeLocalWorkspace({...current,family:shared.family,familyDataMode:shared.dataMode||'official'});return jsonResponse({...shared,localOnly:false});}return response;}
+ if(method==='DELETE'){const current=readLocalWorkspace();queueFamilySnapshot(null,'Xóa dữ liệu gia phả trên thiết bị',current.family,'empty');return jsonResponse({ok:true,family:null,dataMode:'empty',localOnly:true});}
+ if(method==='PUT'){try{const body=JSON.parse(String(init?.body||'{}')) as {family?:unknown;dataMode?:'sample'|'official'|'empty';activity?:{action?:string}};if(!body.family)return jsonResponse({message:'Dữ liệu gia phả local không hợp lệ.'},400);const current=readLocalWorkspace();const mode=body.dataMode||current.familyDataMode||'official';queueFamilySnapshot(body.family,body.activity?.action||'Cập nhật gia phả / thành viên trên thiết bị',current.family,mode);return jsonResponse({ok:true,family:body.family,dataMode:mode,localOnly:true});}catch{return jsonResponse({message:'Dữ liệu gia phả local không hợp lệ.'},400);}}
+ return nativeFetch(input,init);}) as typeof window.fetch;return()=>{window.fetch=nativeFetch;};},[]);return null;}
