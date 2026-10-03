@@ -1,13 +1,55 @@
 'use client';
-import { useEffect,useRef,useState } from 'react';
-import { BellRing,CheckCheck,X } from 'lucide-react';
 
-type Notice={id:string;kind:string;title:string;body:string;request_id?:string;read_at?:number|null;created_at:number};
-export default function AdminChangeNotifications({enabled}:{enabled:boolean}){
- const[items,setItems]=useState<Notice[]>([]);const[open,setOpen]=useState(false);const seen=useRef(new Set<string>());
- const load=async()=>{if(!enabled)return;const r=await fetch('/api/admin/change-notifications',{cache:'no-store'});if(!r.ok)return;const d=await r.json() as {notifications?:Notice[]};const next=d.notifications||[];for(const n of next){if(!n.read_at&&!seen.current.has(n.id)){seen.current.add(n.id);if(typeof Notification!=='undefined'&&Notification.permission==='granted'){try{new Notification(n.title,{body:n.body,tag:n.id});}catch{}}}}setItems(next);};
- useEffect(()=>{if(!enabled)return;void load();const timer=window.setInterval(()=>void load(),20000);return()=>window.clearInterval(timer);},[enabled]);
- if(!enabled)return null;const unread=items.filter(n=>!n.read_at).length;
- const markAll=async()=>{await fetch('/api/admin/change-notifications',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({readAll:true})});setItems(v=>v.map(n=>({...n,read_at:n.read_at||Date.now()})));};
- return <div className="change-notify-root"><button className="change-notify-bell" onClick={()=>setOpen(v=>!v)} aria-label={`Thông báo dữ liệu${unread?` (${unread} chưa đọc)`:''}`}><BellRing/>{unread>0?<b>{unread>99?'99+':unread}</b>:null}</button>{open?<section className="change-notify-panel"><header><div><strong>Thông báo dữ liệu</strong><small>Yêu cầu cập nhật và kết quả phê duyệt</small></div><button onClick={()=>setOpen(false)} aria-label="Đóng"><X/></button></header>{unread>0?<button className="mark-all" onClick={()=>void markAll()}><CheckCheck/>Đánh dấu đã đọc</button>:null}<div className="notice-list">{items.length?items.slice(0,20).map(n=><article className={n.read_at?'':'unread'} key={n.id}><strong>{n.title}</strong><p>{n.body}</p><small>{new Date(n.created_at).toLocaleString('vi-VN')}</small></article>):<p className="notice-empty">Chưa có thông báo.</p>}</div></section>:null}<style>{`.change-notify-root{position:fixed;right:18px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:120}.change-notify-bell{position:relative;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;backdrop-filter:blur(18px);box-shadow:0 8px 30px rgba(0,0,0,.22)}.change-notify-bell svg{width:21px;height:21px}.change-notify-bell b{position:absolute;right:-3px;top:-3px;min-width:19px;height:19px;padding:0 4px;border-radius:10px;display:grid;place-items:center;font-size:10px;background:#b42318;color:white}.change-notify-panel{position:absolute;right:0;bottom:58px;width:min(360px,calc(100vw - 28px));max-height:min(560px,70vh);overflow:hidden;border-radius:22px;padding:14px;background:color-mix(in srgb,#160504 91%,transparent);border:1px solid color-mix(in srgb,#e7b95f 38%,transparent);box-shadow:0 22px 60px rgba(0,0,0,.4);backdrop-filter:blur(24px);color:#f5e5bf}.change-notify-panel header{display:flex;align-items:center;justify-content:space-between;gap:12px}.change-notify-panel header>div{display:grid;gap:2px}.change-notify-panel header small{opacity:.68}.change-notify-panel header button{width:32px;height:32px;display:grid;place-items:center}.change-notify-panel header svg{width:17px;height:17px}.mark-all{margin:10px 0;display:inline-flex;align-items:center;gap:6px;font-size:12px}.mark-all svg{width:14px;height:14px}.notice-list{overflow:auto;max-height:430px;display:grid;gap:8px}.notice-list article{padding:11px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);display:grid;gap:5px}.notice-list article.unread{border-color:rgba(231,185,95,.45);background:rgba(231,185,95,.08)}.notice-list article p{margin:0;font-size:12px;line-height:1.45}.notice-list article small{opacity:.58;font-size:10px}.notice-empty{opacity:.62;text-align:center;padding:28px 8px}@media(max-width:640px){.change-notify-root{right:14px;bottom:calc(88px + env(safe-area-inset-bottom))}}`}</style></div>;
+import { useEffect, useRef, useState } from 'react';
+import { BellRing, CheckCheck, X } from 'lucide-react';
+
+type Notice = { id: string; kind: string; title: string; body: string; request_id?: string; read_at?: number | null; created_at: number };
+
+export default function AdminChangeNotifications({ enabled }: { enabled: boolean }) {
+  const [items, setItems] = useState<Notice[]>([]);
+  const [open, setOpen] = useState(false);
+  const seen = useRef(new Set<string>());
+
+  const load = async () => {
+    if (!enabled) return;
+    const response = await fetch('/api/admin/change-notifications', { cache: 'no-store' });
+    if (!response.ok) return;
+    const data = await response.json() as { notifications?: Notice[] };
+    const next = data.notifications || [];
+    for (const notice of next) {
+      if (!notice.read_at && !seen.current.has(notice.id)) {
+        seen.current.add(notice.id);
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          try { new Notification(notice.title, { body: notice.body, tag: notice.id }); } catch {}
+        }
+      }
+    }
+    setItems(next);
+  };
+
+  useEffect(() => {
+    if (!enabled) return;
+    void load();
+    const timer = window.setInterval(() => void load(), 20000);
+    const openFromOverview = () => setOpen(true);
+    window.addEventListener('pg-open-notifications', openFromOverview);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('pg-open-notifications', openFromOverview);
+    };
+  }, [enabled]);
+
+  if (!enabled) return null;
+  const unread = items.filter((notice) => !notice.read_at).length;
+
+  const markAll = async () => {
+    await fetch('/api/admin/change-notifications', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ readAll: true }) });
+    setItems((value) => value.map((notice) => ({ ...notice, read_at: notice.read_at || Date.now() })));
+  };
+
+  return <div className={`change-notify-root ${open ? 'open' : ''}`}>
+    <button className="change-notify-bell" onClick={() => setOpen((value) => !value)} aria-label={`Thông báo dữ liệu${unread ? ` (${unread} chưa đọc)` : ''}`}><BellRing />{unread > 0 ? <b>{unread > 99 ? '99+' : unread}</b> : null}</button>
+    {open ? <section className="change-notify-panel"><header><div><strong>Thông báo dữ liệu</strong><small>Yêu cầu cập nhật và kết quả phê duyệt</small></div><button onClick={() => setOpen(false)} aria-label="Đóng"><X /></button></header>{unread > 0 ? <button className="mark-all" onClick={() => void markAll()}><CheckCheck />Đánh dấu đã đọc</button> : null}<div className="notice-list">{items.length ? items.slice(0, 20).map((notice) => <article className={notice.read_at ? '' : 'unread'} key={notice.id}><strong>{notice.title}</strong><p>{notice.body}</p><small>{new Date(notice.created_at).toLocaleString('vi-VN')}</small></article>) : <p className="notice-empty">Chưa có thông báo.</p>}</div></section> : null}
+    <style>{`.change-notify-root{position:fixed;right:18px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:120}.change-notify-bell{position:relative;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;backdrop-filter:blur(18px);box-shadow:0 8px 30px rgba(0,0,0,.22)}.change-notify-bell svg{width:21px;height:21px}.change-notify-bell b{position:absolute;right:-3px;top:-3px;min-width:19px;height:19px;padding:0 4px;border-radius:10px;display:grid;place-items:center;font-size:10px;background:#b42318;color:white}.change-notify-panel{position:absolute;right:0;bottom:58px;width:min(360px,calc(100vw - 28px));max-height:min(560px,70vh);overflow:hidden;border-radius:22px;padding:14px;background:color-mix(in srgb,#160504 91%,transparent);border:1px solid color-mix(in srgb,#e7b95f 38%,transparent);box-shadow:0 22px 60px rgba(0,0,0,.4);backdrop-filter:blur(24px);color:#f5e5bf}.change-notify-panel header{display:flex;align-items:center;justify-content:space-between;gap:12px}.change-notify-panel header>div{display:grid;gap:2px}.change-notify-panel header small{opacity:.68}.change-notify-panel header button{width:32px;height:32px;display:grid;place-items:center}.change-notify-panel header svg{width:17px;height:17px}.mark-all{margin:10px 0;display:inline-flex;align-items:center;gap:6px;font-size:12px}.mark-all svg{width:14px;height:14px}.notice-list{overflow:auto;max-height:430px;display:grid;gap:8px}.notice-list article{padding:11px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);display:grid;gap:5px}.notice-list article.unread{border-color:rgba(231,185,95,.45);background:rgba(231,185,95,.08)}.notice-list article p{margin:0;font-size:12px;line-height:1.45}.notice-list article small{opacity:.58;font-size:10px}.notice-empty{opacity:.62;text-align:center;padding:28px 8px}@media(max-width:640px){.change-notify-root{right:14px;bottom:calc(88px + env(safe-area-inset-bottom))}html.pg-home-v4-active .change-notify-root{z-index:10040;right:12px;bottom:calc(82px + env(safe-area-inset-bottom))}html.pg-home-v4-active .change-notify-root:not(.open) .change-notify-bell{opacity:0;pointer-events:none}html.pg-home-v4-active .change-notify-root.open .change-notify-bell{display:none}.change-notify-panel{bottom:0}}`}</style>
+  </div>;
 }
