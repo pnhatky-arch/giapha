@@ -2,7 +2,9 @@ import { readFile } from 'node:fs/promises';
 
 const data = await readFile('components/overview-hero-data.generated.ts', 'utf8');
 const tune = await readFile('components/overview-v5-tune.tsx', 'utf8');
+const polish = await readFile('components/overview-v13-polish.tsx', 'utf8');
 const overview = await readFile('components/overview-premium-redesign.tsx', 'utf8');
+const page = await readFile('app/page.tsx', 'utf8');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -46,19 +48,26 @@ const nightDim = jpegDimensions(night);
 assert(dayDim.width >= 460 && dayDim.height >= 270, `DAY hero dimensions too small: ${dayDim.width}x${dayDim.height}`);
 assert(nightDim.width >= 450 && nightDim.height >= 270, `NIGHT hero dimensions too small: ${nightDim.width}x${nightDim.height}`);
 
-assert(!tune.includes("url('/overview/hero-"), 'V12 must not request standalone overview hero assets');
-assert(tune.includes('.pg4-hero{height:107vw!important;min-height:390px!important;max-height:430px!important'), 'V12 hero geometry contract missing');
-assert(tune.includes('.pg4-logo{width:96px!important;height:96px!important'), 'V12 crest geometry contract missing');
-assert(tune.includes('.pg4-sample{min-height:80px!important'), 'V12 sample-banner geometry contract missing');
-assert(tune.includes('.pg4-overview{padding:62px 9px 12px!important'), 'V12 overview geometry contract missing');
-assert(tune.includes('.pg4-stat{min-height:145px!important'), 'V12 stat-card geometry contract missing');
-assert(tune.includes('.pg4-tree{width:calc(100% - 8px)!important;height:74px!important'), 'V12 family-tree CTA geometry contract missing');
-assert(tune.includes('.pg4-quote{min-height:140px!important'), 'V12 quote geometry contract missing');
-assert(tune.includes('.pg4-nav{height:calc(72px + env(safe-area-inset-bottom))!important'), 'V12 nav geometry contract missing');
-assert(tune.includes('appearance:none!important'), 'V12 native language-select chrome must be removed');
-assert(tune.includes(".pg4-language:after{content:'⌄'!important"), 'V12 custom language chevron missing');
-assert(tune.includes('.pg4-gate{right:20px!important'), 'V12 quote gate artwork contract missing');
-assert(tune.includes('.pg4-nav button:first-child.active svg{fill:currentColor!important'), 'V12 active Home icon fill missing');
+assert(!tune.includes("url('/overview/hero-"), 'V13 must not request standalone overview hero assets');
+assert(tune.includes('.pg4-hero{height:107vw!important;min-height:390px!important;max-height:430px!important'), 'V13 hero geometry contract missing');
+assert(tune.includes('.pg4-logo{width:96px!important;height:96px!important'), 'V13 crest geometry contract missing');
+assert(tune.includes('.pg4-sample{min-height:80px!important'), 'V13 sample-banner geometry contract missing');
+assert(tune.includes('.pg4-overview{padding:62px 9px 12px!important'), 'V13 overview geometry contract missing');
+assert(tune.includes('.pg4-stat{min-height:145px!important'), 'V13 stat-card geometry contract missing');
+assert(tune.includes('.pg4-tree{width:calc(100% - 8px)!important;height:74px!important'), 'V13 family-tree CTA geometry contract missing');
+assert(tune.includes('.pg4-quote{min-height:140px!important'), 'V13 quote geometry contract missing');
+assert(tune.includes('.pg4-nav{height:calc(72px + env(safe-area-inset-bottom))!important'), 'V13 nav geometry contract missing');
+assert(tune.includes('appearance:none!important'), 'V13 native language-select chrome must be removed');
+assert(tune.includes(".pg4-language:after{content:'⌄'!important"), 'V13 custom language chevron missing');
+
+assert(page.includes("import OverviewV13Polish from '@/components/overview-v13-polish';"), 'V13 polish component import missing');
+assert(page.includes('<OverviewV13Polish/>'), 'V13 polish component is not mounted last');
+assert(polish.includes("html:not([data-hue-mode='dark']) .pg4-title h1{color:#761a12!important"), 'V13 day-title color contract missing');
+assert(polish.includes('.pg4-bell{width:30px!important;height:41px!important;border:0!important'), 'V13 standalone bell contract missing');
+assert(polish.includes('background:linear-gradient(145deg,#a51e14,#6a0c08)!important'), 'V13 sample database medallion contract missing');
+assert(polish.includes(".pg4-lotus:after{content:'🪷'!important"), 'V13 lotus artwork contract missing');
+assert(polish.includes('bottom:calc(1px + env(safe-area-inset-bottom))!important'), 'V13 active-nav indicator must be at bottom');
+assert(polish.includes('border-radius:19px 19px 0 0!important'), 'V13 rounded nav frame missing');
 
 const refWidth = 480;
 const cssWidth = 390;
@@ -89,7 +98,7 @@ const drifts = {
   quote: ratio(actual.quote / cssWidth, target.quote / cssWidth, 0.015, 'quote'),
   nav: ratio(actual.nav / cssWidth, target.nav / cssWidth, 0.015, 'nav'),
 };
-assert(Math.abs(actual.preNav - target.preNav) <= 16, `V12 pre-nav vertical drift too large: actual=${actual.preNav}px target=${target.preNav.toFixed(1)}px`);
+assert(Math.abs(actual.preNav - target.preNav) <= 16, `V13 pre-nav vertical drift too large: actual=${actual.preNav}px target=${target.preNav.toFixed(1)}px`);
 
 assert(overview.includes('Dữ liệu thử nghiệm'), 'Sample-data banner missing');
 assert(overview.includes('TỔNG QUAN DÒNG HỌ'), 'Overview title missing');
@@ -99,4 +108,4 @@ for (const label of ['Tổng quan', 'Cây gia phả', 'Thành viên', 'Sự ki�
   assert(overview.includes(label), `Bottom navigation label missing: ${label}`);
 }
 
-console.log(`Overview V12 contract OK · day=${dayDim.width}x${dayDim.height}/${dayDim.bytes}B · night=${nightDim.width}x${nightDim.height}/${nightDim.bytes}B · preNav=${actual.preNav}px/${target.preNav.toFixed(1)}px · maxSectionDrift=${Math.max(...Object.values(drifts)).toFixed(4)} · inline assets`);
+console.log(`Overview V13 contract OK · day=${dayDim.width}x${dayDim.height}/${dayDim.bytes}B · night=${nightDim.width}x${nightDim.height}/${nightDim.bytes}B · preNav=${actual.preNav}px/${target.preNav.toFixed(1)}px · maxSectionDrift=${Math.max(...Object.values(drifts)).toFixed(4)} · detail polish mounted · inline assets`);
