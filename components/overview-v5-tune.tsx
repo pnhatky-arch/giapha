@@ -1,9 +1,11 @@
 'use client';
 
+import { DAY_HERO_DATA, NIGHT_HERO_DATA } from './overview-hero-data.generated';
+
 export default function OverviewV5Tune() {
   return <style>{`
-/* V8: render hero as CSS background so iOS Safari never shows a broken <img> glyph. */
-html{--pg4-hero-day:url('/overview/hero-day.jpg?v=8');--pg4-hero-night:url('/overview/hero-night.jpg?v=8')}
+/* V9: hero JPEGs are bundled as data URLs; no Cloudflare static-asset request is required. */
+html{--pg4-hero-day:url("${DAY_HERO_DATA}");--pg4-hero-night:url("${NIGHT_HERO_DATA}")}
 .pg4-hero{height:365px!important;background-color:#5e0c08!important;background-image:var(--pg4-hero-day)!important;background-size:cover!important;background-position:center 50%!important;background-repeat:no-repeat!important}
 html[data-hue-mode='dark'] .pg4-hero{background-color:#061827!important;background-image:var(--pg4-hero-night)!important}
 .pg4-hero-art{display:none!important}
