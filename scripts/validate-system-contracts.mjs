@@ -39,11 +39,17 @@ has('app/api/events/chapa/route.ts', 'event_media:', 'Chạp mộ deletion must 
 has('app/api/events/media/route.ts', 'validIds.has(eventId)', 'event media upload/read must validate the parent event');
 has('app/api/events/media/route.ts', "file.type === 'image/svg+xml'", 'event media must reject active SVG uploads');
 
-// Guest/event UI guards and media UI must be mounted in the real page tree.
+// Guest/event UI guards and additive system UI must be mounted in the real page tree.
 const page = read('app/page.tsx');
-for (const component of ['EventsMediaEnhancements', 'EventsEditPermissionFix', 'EventsCardLayoutFix', 'TombSweepingEvents', 'SystemBackupEnhancements', 'DynamicLanguageData']) {
+for (const component of ['EventsMediaEnhancements', 'EventsEditPermissionFix', 'EventsCardLayoutFix', 'TombSweepingEvents', 'SystemBackupEnhancements', 'DynamicLanguageData', 'TreeSvgExport']) {
   assert(page.includes(`<${component}`), `app/page.tsx must mount ${component}`);
 }
+
+// SVG tree export must preview before download and build a scalable vector from the canonical family API.
+has('components/tree-svg-export.tsx', "fetch('/api/family'", 'tree SVG export must use the canonical family API');
+has('components/tree-svg-export.tsx', 'tree-svg-preview', 'tree SVG export must show a preview dialog');
+has('components/tree-svg-export.tsx', 'Xuất SVG', 'tree SVG export must require an explicit export action after preview');
+has('components/tree-svg-export.tsx', 'Đời thứ', 'tree SVG export must place generation labels in the vector tree');
 
 // Newly created or edited descriptive data must follow the active language without
 // storing translated copies in genealogy data. Workers AI is the translation fallback
@@ -74,4 +80,4 @@ lacks('app/api/system-backup/route.ts', 'FROM sessions', 'system backup must not
 has('scripts/validate-sample-data.mjs', 'SAMPLE_MEMBER_COUNT', 'sample fixture validator must verify member count');
 has('scripts/validate-sample-data.mjs', "=== 6", 'sample fixture validator must enforce 6 generations');
 
-console.log('System contracts OK · secrets · auth · audit · D1 media · events · permissions · dynamic i18n · reset · backup');
+console.log('System contracts OK · secrets · auth · audit · D1 media · events · permissions · SVG export · dynamic i18n · reset · backup');
