@@ -2,57 +2,32 @@
 
 import { useEffect } from 'react';
 
-async function extractEmbeddedJpeg(path: string) {
-  try {
-    const response = await fetch(`${path}?raster=6`, { cache: 'no-store' });
-    if (!response.ok) return path;
-    const svg = await response.text();
-    const match = svg.match(/href="(data:image\/jpeg;base64,[^"]+)"/);
-    return match?.[1] ?? path;
-  } catch {
-    return path;
-  }
-}
+const DAY_HERO = '/overview/hero-day.jpg?v=7';
+const NIGHT_HERO = '/overview/hero-night.jpg?v=7';
 
 export default function OverviewV5Tune() {
   useEffect(() => {
-    let disposed = false;
-    let dayRaster = '';
-    let nightRaster = '';
-
     const apply = () => {
       const day = document.querySelector<HTMLImageElement>('.pg4-hero-day');
       const night = document.querySelector<HTMLImageElement>('.pg4-hero-night');
-      if (day && dayRaster && day.getAttribute('src') !== dayRaster) day.setAttribute('src', dayRaster);
-      if (night && nightRaster && night.getAttribute('src') !== nightRaster) night.setAttribute('src', nightRaster);
-      document.documentElement.dataset.pgOverview = 'v6';
+      if (day && day.getAttribute('src') !== DAY_HERO) day.setAttribute('src', DAY_HERO);
+      if (night && night.getAttribute('src') !== NIGHT_HERO) night.setAttribute('src', NIGHT_HERO);
+      document.documentElement.dataset.pgOverview = 'v7';
     };
 
-    void Promise.all([
-      extractEmbeddedJpeg('/overview/hero-day.svg'),
-      extractEmbeddedJpeg('/overview/hero-night.svg'),
-    ]).then(([day, night]) => {
-      if (disposed) return;
-      dayRaster = day;
-      nightRaster = night;
-      apply();
-    });
-
+    apply();
     const observer = new MutationObserver(apply);
     observer.observe(document.body, { childList: true, subtree: true });
-    return () => {
-      disposed = true;
-      observer.disconnect();
-    };
+    return () => observer.disconnect();
   }, []);
 
   return <style>{`
-/* V6: direct JPEG hero rendering fixes iOS Safari blur from JPEG-inside-SVG. */
+/* V7: hero assets are materialized as real JPEG files during build. */
 .pg4-hero{height:365px!important;background:#5e0c08!important}
 .pg4-hero-art{object-position:center 50%!important;object-fit:cover!important;transform:none!important;filter:saturate(1.06) contrast(1.03)!important;image-rendering:auto!important}
 .pg4-hero-night{display:none}html[data-hue-mode='dark'] .pg4-hero-day{display:none!important}html[data-hue-mode='dark'] .pg4-hero-night{display:block!important}
-.pg4-hero-shade{background:linear-gradient(180deg,rgba(35,2,2,.26) 0%,rgba(35,2,2,.03) 23%,transparent 53%,rgba(38,3,2,.03) 72%,rgba(38,3,2,.58) 100%)!important}
-html[data-hue-mode='dark'] .pg4-hero-shade{background:linear-gradient(180deg,rgba(1,7,12,.38) 0%,rgba(1,7,12,.06) 23%,transparent 53%,rgba(2,9,15,.04) 72%,rgba(2,9,15,.62) 100%)!important}
+.pg4-hero-shade{background:linear-gradient(180deg,rgba(35,2,2,.24) 0%,rgba(35,2,2,.02) 24%,transparent 54%,rgba(38,3,2,.02) 72%,rgba(38,3,2,.54) 100%)!important}
+html[data-hue-mode='dark'] .pg4-hero-shade{background:linear-gradient(180deg,rgba(1,7,12,.34) 0%,rgba(1,7,12,.05) 24%,transparent 54%,rgba(2,9,15,.03) 72%,rgba(2,9,15,.58) 100%)!important}
 .pg4-top{top:calc(env(safe-area-inset-top) + 10px)!important;left:16px!important;right:12px!important;align-items:flex-start!important}
 .pg4-logo{width:82px!important;height:82px!important}
 .pg4-actions{gap:6px!important}
@@ -70,10 +45,12 @@ html[data-hue-mode='dark'] .pg4-hero-shade{background:linear-gradient(180deg,rgb
 .pg4-sample strong{font-size:11.5px!important}.pg4-sample p{font-size:9.2px!important}
 .pg4-overview{padding:58px 9px 16px!important;border-radius:18px!important}
 .pg4-section-title{top:14px!important;font-size:11.5px!important}.pg4-section-title strong{padding:7px 14px!important}
-.pg4-stats{gap:6px!important}.pg4-stat{min-height:120px!important;border-radius:14px!important;padding:13px 3px 9px!important;background-size:cover,245%!important}
+.pg4-stats{gap:6px!important}.pg4-stat{min-height:120px!important;border-radius:14px!important;padding:13px 3px 9px!important;background-image:linear-gradient(180deg,#9f2a1eda 0%,#5a0b07d8 58%,#380503ef 100%),url('/overview/hero-day.jpg?v=7')!important;background-size:cover,245%!important;background-position:center,center bottom!important}
+html[data-hue-mode='dark'] .pg4-stat{background-image:linear-gradient(180deg,#173e55d8 0%,#092235d8 58%,#03101bef 100%),url('/overview/hero-night.jpg?v=7')!important}
 .pg4-stat svg{width:22px!important;height:22px!important}.pg4-stat strong{font-size:28px!important}.pg4-stat.family strong{font-size:16px!important}.pg4-stat span{font-size:9px!important}
 .pg4-tree{height:58px!important;margin-top:13px!important;border-radius:20px!important}.pg4-tree strong{font-size:17px!important}.pg4-tree>svg:first-of-type{width:31px!important;height:31px!important}
-.pg4-quote{min-height:122px!important;padding:19px 31px 17px!important;font-size:14.8px!important;background-size:cover,128%!important;background-position:center,center 70%!important}
+.pg4-quote{min-height:122px!important;padding:19px 31px 17px!important;font-size:14.8px!important;background-image:linear-gradient(90deg,#f2dfbaed,#f7e8caed),url('/overview/hero-day.jpg?v=7')!important;background-size:cover,128%!important;background-position:center,center 70%!important}
+html[data-hue-mode='dark'] .pg4-quote{background-image:linear-gradient(90deg,#e5d2a8ea,#d5c195ea),url('/overview/hero-night.jpg?v=7')!important}
 .pg4-nav{height:calc(68px + env(safe-area-inset-bottom))!important;padding-top:4px!important}.pg4-nav button{font-size:7.8px!important}.pg4-nav button svg{width:19px!important;height:19px!important}
 @media(max-width:390px){.pg4-hero{height:345px!important}.pg4-logo{width:76px!important;height:76px!important}.pg4-title{top:calc(env(safe-area-inset-top) + 83px)!important;left:94px!important}.pg4-title h1{font-size:15.8px!important}.pg4-title p{font-size:9px!important}.pg4-language{min-width:102px!important}.pg4-language select{width:86px!important}.pg4-account,.pg4-bell{width:38px!important;height:38px!important}.pg4-stat{min-height:114px!important}.pg4-quote{min-height:116px!important}}
   `}</style>;
