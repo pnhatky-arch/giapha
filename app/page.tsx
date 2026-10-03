@@ -16,6 +16,7 @@ import TreeMobileGenerations from '@/components/tree-mobile-generations';
 import TreeHeadingCenter from '@/components/tree-heading-center';
 import TreeSingleGenerationCards from '@/components/tree-single-generation-cards';
 import TreeTouchZoom from '@/components/tree-touch-zoom';
+import TreeSvgExport from '@/components/tree-svg-export';
 import SampleFixtureEnhancements from '@/components/sample-fixture-enhancements';
 import SystemBackupEnhancements from '@/components/system-backup-enhancements';
 
@@ -24,5 +25,5 @@ export const dynamic = 'force-dynamic';
 export default async function HomePage() {
   const user = await getInternalUser();
   const canEdit = Boolean(user);
-  return <><FamilyApp user={user ? { displayName: user.displayName, username: user.username, role: user.role, permissions: user.permissions } : null} /><DynamicLanguageData /><AutoDisplayResolver /><GenerationSelectionGlow /><GenerationFilterInfo /><TreeMobileGenerations /><TreeSingleGenerationCards /><TreeTouchZoom /><TreeHeadingCenter /><BottomTabSelectionGlow /><EventsHueEnhancements /><TombSweepingEvents canEdit={canEdit} /><EventsCardLayoutFix /><EventsMediaEnhancements canEdit={canEdit} /><EventsEditPermissionFix canEdit={canEdit} /><MaterialsMobileTune /><MaterialsMediaStateFix /><SampleFixtureEnhancements /><SystemBackupEnhancements /></>;
+  return <><FamilyApp user={user ? { displayName: user.displayName, username: user.username, role: user.role, permissions: user.permissions } : null} /><DynamicLanguageData /><AutoDisplayResolver /><GenerationSelectionGlow /><GenerationFilterInfo /><TreeMobileGenerations /><TreeSingleGenerationCards /><TreeTouchZoom /><TreeSvgExport /><TreeHeadingCenter /><BottomTabSelectionGlow /><EventsHueEnhancements /><TombSweepingEvents canEdit={canEdit} /><EventsCardLayoutFix /><EventsMediaEnhancements canEdit={canEdit} /><EventsEditPermissionFix canEdit={canEdit} /><MaterialsMobileTune /><MaterialsMediaStateFix /><SampleFixtureEnhancements /><SystemBackupEnhancements /></>;
 }
