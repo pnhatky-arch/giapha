@@ -1,0 +1,30 @@
+'use client';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, DatabaseBackup, Download, Send, ShieldCheck, Trash2, Upload, X } from 'lucide-react';
+import { clearLocalWorkspace, emptyLocalWorkspace, LOCAL_BACKUP_SCOPE, readLocalWorkspace, writeLocalWorkspace, type LocalWorkspace } from '@/lib/local-data-workspace';
+
+type RequestRow = { id:string; requester_username:string; summary:string; payload:string; status:string; reviewer_username?:string; review_note?:string; created_at:number };
+
+export default function LocalDataManagement({ isAdmin = false }: { isAdmin?: boolean }) {
+  const [workspace,setWorkspace] = useState<LocalWorkspace>(emptyLocalWorkspace());
+  const [requests,setRequests] = useState<RequestRow[]>([]);
+  const [message,setMessage] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const refreshLocal = () => setWorkspace(readLocalWorkspace());
+  const loadRequests = async () => { const r=await fetch('/api/shared-change-requests',{cache:'no-store'}); if(r.ok){const d=await r.json() as {requests?:RequestRow[]};setRequests(d.requests||[]);} };
+  useEffect(()=>{ refreshLocal(); void loadRequests(); window.addEventListener('giapha:local-workspace-changed',refreshLocal); return()=>window.removeEventListener('giapha:local-workspace-changed',refreshLocal); },[]);
+  const counts=useMemo(()=>workspace.pendingChanges.reduce<Record<string,number>>((a,c)=>{a[c.kind]=(a[c.kind]||0)+1;return a;},{}),[workspace]);
+  const summary=Object.entries(counts).map(([k,v])=>`${v} ${k}`).join(' · ') || 'Không có thay đổi đang chờ';
+  const backup=()=>{const blob=new Blob([JSON.stringify({scope:LOCAL_BACKUP_SCOPE,exportedAt:new Date().toISOString(),workspace},null,2)],{type:'application/json'});const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=`giapha-local-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000);setMessage('Đã sao lưu dữ liệu riêng của thiết bị này.');};
+  const restore=async(file?:File)=>{if(!file)return;try{const d=JSON.parse(await file.text()) as {scope?:string;workspace?:LocalWorkspace};if(d.scope!==LOCAL_BACKUP_SCOPE||d.workspace?.version!==1)throw new Error();writeLocalWorkspace(d.workspace);setMessage('Đã phục hồi dữ liệu local. Dữ liệu chung không bị thay đổi.');}catch{setMessage('Tệp sao lưu local không hợp lệ.');}if(fileRef.current)fileRef.current.value='';};
+  const submit=async()=>{if(!workspace.pendingChanges.length)return;const r=await fetch('/api/shared-change-requests',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({changes:workspace.pendingChanges,deviceLabel:navigator.userAgent.slice(0,120)})});const d=await r.json() as {message?:string};setMessage(r.ok?'Đã gửi quản trị viên duyệt. Dữ liệu chung chưa thay đổi.':d.message||'Không gửi được yêu cầu.');if(r.ok)void loadRequests();};
+  const review=async(id:string,decision:'approved'|'rejected')=>{const r=await fetch('/api/shared-change-requests',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({id,decision})});const d=await r.json() as {message?:string};setMessage(r.ok?(decision==='approved'?'Đã duyệt yêu cầu.':'Đã từ chối yêu cầu.'):d.message||'Không xử lý được yêu cầu.');void loadRequests();};
+  return <section className="local-data-center">
+    <article className="setting-card"><div className="setting-icon"><DatabaseBackup/></div><div className="setting-copy"><h3>Dữ liệu trên thiết bị này</h3><p>Sao lưu, phục hồi và xóa chỉ tác động dữ liệu local của máy hiện tại. Không thay đổi dữ liệu chung.</p></div><div className="data-actions"><button onClick={backup}><Download/>Sao lưu local</button><button onClick={()=>fileRef.current?.click()}><Upload/>Phục hồi local</button><input ref={fileRef} hidden type="file" accept="application/json,.json" onChange={e=>void restore(e.target.files?.[0])}/><button className="danger-action" onClick={()=>{if(confirm('Xóa dữ liệu local trên thiết bị này? Dữ liệu chung sẽ được giữ nguyên.')){clearLocalWorkspace();setMessage('Đã xóa dữ liệu local.');}}><Trash2/>Xóa local</button></div></article>
+    <article className="setting-card shared-submit-card"><div className="setting-icon"><Send/></div><div className="setting-copy"><h3>Đẩy lên dữ liệu chung</h3><p>Mọi thay đổi local phải được quản trị viên phê duyệt trước khi ghi vào dữ liệu chung.</p><div className="setting-meta"><ShieldCheck/><span>{summary}</span></div></div><div className="data-actions"><button disabled={!workspace.pendingChanges.length} onClick={()=>void submit()}><Send/>Gửi quản trị viên duyệt</button></div></article>
+    {requests.length>0&&<article className="setting-card approval-list"><div className="setting-copy"><h3>{isAdmin?'Yêu cầu dữ liệu chung':'Yêu cầu đã gửi'}</h3><p>{isAdmin?'Kiểm tra nội dung trước khi duyệt. Chỉ yêu cầu được duyệt mới có quyền ghi dữ liệu chung.':'Theo dõi trạng thái các yêu cầu từ thiết bị này.'}</p>{requests.map(r=><div className="approval-row" key={r.id}><div><strong>{r.summary}</strong><small>{r.requester_username} · {new Date(r.created_at).toLocaleString('vi-VN')} · {r.status==='pending'?'Chờ duyệt':r.status==='approved'?'Đã duyệt':'Từ chối'}</small></div>{isAdmin&&r.status==='pending'&&<span><button onClick={()=>void review(r.id,'approved')}><Check/>Duyệt</button><button className="danger-action" onClick={()=>void review(r.id,'rejected')}><X/>Từ chối</button></span>}</div>)}</div></article>}
+    {message&&<output className="admin-message"><ShieldCheck/>{message}</output>}
+    <style>{`.local-data-center{display:grid;gap:12px}.approval-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid color-mix(in srgb,currentColor 14%,transparent)}.approval-row div{display:grid;gap:4px}.approval-row small{opacity:.68}.approval-row span{display:flex;gap:8px}.approval-row button{display:inline-flex;align-items:center;gap:5px}.approval-row svg{width:15px;height:15px}`}</style>
+  </section>;
+}
