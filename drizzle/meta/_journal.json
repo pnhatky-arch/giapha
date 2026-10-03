@@ -7,6 +7,7 @@
     {"idx":2,"version":"6","when":1788674731581,"tag":"0002_free_hellfire_club","breakpoints":true},
     {"idx":3,"version":"6","when":1788690785306,"tag":"0003_kind_rick_jones","breakpoints":true},
     {"idx":4,"version":"6","when":1788714270879,"tag":"0004_tidy_reavers","breakpoints":true},
-    {"idx":5,"version":"6","when":1790993000000,"tag":"0005_shared_change_requests","breakpoints":true}
+    {"idx":5,"version":"6","when":1790993000000,"tag":"0005_shared_change_requests","breakpoints":true},
+    {"idx":6,"version":"6","when":1790993600000,"tag":"0006_admin_notifications","breakpoints":true}
   ]
 }
