@@ -22,11 +22,8 @@ import SampleFixtureEnhancements from '@/components/sample-fixture-enhancements'
 import SettingsCollapseCards from '@/components/settings-collapse-cards';
 import DeviceLocalSettings from '@/components/device-local-settings';
 import LocalDataManagement from '@/components/local-data-management';
+import LocalFamilyWriteGuard from '@/components/local-family-write-guard';
+import LocalDomainWriteGuard from '@/components/local-domain-write-guard';
 
 export const dynamic = 'force-dynamic';
-
-export default async function HomePage() {
-  const user = await getInternalUser();
-  const canEdit = Boolean(user);
-  return <><DeviceLocalSettings /><FamilyApp user={user ? { displayName: user.displayName, username: user.username, role: user.role, permissions: user.permissions } : null} /><DynamicLanguageData /><AutoDisplayResolver /><GenerationSelectionGlow /><GenerationFilterInfo /><TreeMobileGenerations /><TreeSingleGenerationCards /><TreeTouchZoom /><TreeSvgExport /><TreeHeadingCenter /><BottomTabSelectionGlow /><EventsHueEnhancements /><EventsFilterFitRow /><TombSweepingEvents canEdit={canEdit} /><EventsCardLayoutFix /><EventsMediaEnhancements canEdit={canEdit} /><EventsEditPermissionFix canEdit={canEdit} /><MaterialsMobileTune /><MaterialsMediaStateFix /><SampleFixtureEnhancements /><LocalDataManagement isAdmin={user?.role === 'super_admin'} /><SettingsCollapseCards /></>;
-}
+export default async function HomePage(){const user=await getInternalUser();const canEdit=Boolean(user);return <><DeviceLocalSettings/><LocalFamilyWriteGuard/><LocalDomainWriteGuard/><FamilyApp user={user?{displayName:user.displayName,username:user.username,role:user.role,permissions:user.permissions}:null}/><DynamicLanguageData/><AutoDisplayResolver/><GenerationSelectionGlow/><GenerationFilterInfo/><TreeMobileGenerations/><TreeSingleGenerationCards/><TreeTouchZoom/><TreeSvgExport/><TreeHeadingCenter/><BottomTabSelectionGlow/><EventsHueEnhancements/><EventsFilterFitRow/><TombSweepingEvents canEdit={canEdit}/><EventsCardLayoutFix/><EventsMediaEnhancements canEdit={canEdit}/><EventsEditPermissionFix canEdit={canEdit}/><MaterialsMobileTune/><MaterialsMediaStateFix/><SampleFixtureEnhancements/><LocalDataManagement isAdmin={user?.role==='super_admin'}/><SettingsCollapseCards/></>;}
