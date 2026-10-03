@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Lora, Manrope } from 'next/font/google';
 import './globals.css';
 import './hue-overview.css';
@@ -14,6 +14,14 @@ export const metadata: Metadata = {
     description: 'Gìn giữ cội nguồn – Kết nối các thế hệ.',
     images: ['/og.png'],
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#76100b',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
