@@ -4,7 +4,13 @@ import {Moon,Sun} from 'lucide-react';
 
 const KEY='gia-pha-hue-display-mode-v1';
 type Mode='light'|'dark';
-function apply(mode:Mode){document.documentElement.dataset.hueMode=mode;document.documentElement.style.colorScheme=mode==='dark'?'dark':'light';}
+function apply(mode:Mode){
+ document.documentElement.dataset.hueMode=mode;
+ document.documentElement.style.colorScheme=mode==='dark'?'dark':'light';
+ let meta=document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+ if(!meta){meta=document.createElement('meta');meta.name='theme-color';document.head.appendChild(meta)}
+ meta.content=mode==='dark'?'#061827':'#76100b';
+}
 export default function HueDisplayMode(){
  const[mode,setMode]=useState<Mode>('light');
  useEffect(()=>{const saved=window.localStorage.getItem(KEY);const next:Mode=saved==='dark'?'dark':'light';setMode(next);apply(next)},[]);
