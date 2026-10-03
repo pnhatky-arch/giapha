@@ -23,7 +23,7 @@ function isInteractiveTarget(target: EventTarget | null) {
 
 export default function SettingsCollapseCards() {
   useEffect(() => {
-    let frame = 0;
+    const cleanups: Array<() => void> = [];
 
     const setCollapsed = (card: HTMLElement, header: HTMLElement, collapsed: boolean) => {
       card.classList.toggle('is-settings-collapsed', collapsed);
@@ -31,52 +31,49 @@ export default function SettingsCollapseCards() {
       header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     };
 
-    const installHeader = (card: HTMLElement, header: HTMLElement) => {
-      if (header.dataset.settingsCollapseReady === '1') return;
+    const installCard = (card: HTMLElement) => {
+      if (card.dataset.settingsCollapseReady === '1') return;
+      const header = cardHeader(card);
+      if (!header) return;
+
+      card.dataset.settingsCollapseReady = '1';
       header.dataset.settingsCollapseReady = '1';
+      card.classList.add('settings-collapse-card');
       header.classList.add('settings-collapse-header');
       header.setAttribute('role', 'button');
       header.setAttribute('tabindex', '0');
-      header.setAttribute('aria-expanded', 'false');
       header.setAttribute('aria-label', `${header.querySelector('h3,strong')?.textContent?.trim() || 'Cài đặt'}: mở hoặc thu gọn`);
+      setCollapsed(card, header, true);
 
       const toggle = () => setCollapsed(card, header, !card.classList.contains('is-settings-collapsed'));
-      header.addEventListener('click', (event) => {
+      const onClick = (event: MouseEvent) => {
         if (isInteractiveTarget(event.target)) return;
         toggle();
-      });
-      header.addEventListener('keydown', (event) => {
+      };
+      const onKeyDown = (event: KeyboardEvent) => {
         if (event.key !== 'Enter' && event.key !== ' ') return;
         if (isInteractiveTarget(event.target) && event.target !== header) return;
         event.preventDefault();
         toggle();
+      };
+      header.addEventListener('click', onClick);
+      header.addEventListener('keydown', onKeyDown);
+      cleanups.push(() => {
+        header.removeEventListener('click', onClick);
+        header.removeEventListener('keydown', onKeyDown);
       });
     };
 
-    const installCard = (card: HTMLElement) => {
-      const header = cardHeader(card);
-      if (!header) return;
-      card.classList.add('settings-collapse-card');
-      if (card.dataset.settingsCollapseReady !== '1') {
-        card.dataset.settingsCollapseReady = '1';
-        setCollapsed(card, header, true);
-      }
-      installHeader(card, header);
-    };
+    // The settings cards already exist when this client component mounts.
+    // Intentionally do not observe document mutations: Safari/iOS must never
+    // enter a DOM observer feedback loop because of our own class/ARIA writes.
+    document.querySelectorAll<HTMLElement>(CARD_SELECTOR).forEach(installCard);
 
     const collapseAll = () => {
       document.querySelectorAll<HTMLElement>(CARD_SELECTOR).forEach((card) => {
-        const header = cardHeader(card);
-        if (!header) return;
         installCard(card);
-        setCollapsed(card, header, true);
-      });
-    };
-
-    const sync = () => {
-      window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => {
-        document.querySelectorAll<HTMLElement>(CARD_SELECTOR).forEach(installCard);
+        const header = cardHeader(card);
+        if (header) setCollapsed(card, header, true);
       });
     };
 
@@ -85,149 +82,65 @@ export default function SettingsCollapseCards() {
       const clickable = target?.closest('button,a,[role="tab"]');
       if (!clickable) return;
       const label = (clickable.textContent || '').trim().toLocaleLowerCase('vi');
-      if (label !== 'cài đặt' && !label.includes('cài đặt')) return;
+      if (!label.includes('cài đặt')) return;
       window.setTimeout(collapseAll, 0);
     };
 
-    const observer = new MutationObserver(sync);
-    observer.observe(document.body, { childList: true, subtree: true });
     document.addEventListener('click', handleTabClick, true);
-    sync();
-
     return () => {
-      observer.disconnect();
       document.removeEventListener('click', handleTabClick, true);
-      window.cancelAnimationFrame(frame);
+      cleanups.forEach((cleanup) => cleanup());
     };
   }, []);
 
   return <style>{`
-    .settings-collapse-card {
-      transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
-    }
+    .settings-collapse-card { transition: border-color .18s ease, box-shadow .18s ease, background .18s ease; }
+    .settings-grid,.advanced-admin,.admin-config-grid { row-gap:14px!important;gap:14px!important; }
+    .advanced-admin { margin-bottom:0!important;padding-bottom:0!important; }
+    .advanced-admin + .audit-log-card { margin-top:0!important; }
 
-    /* Keep every settings card on the same vertical rhythm. */
-    .settings-grid,
-    .advanced-admin,
-    .admin-config-grid {
-      row-gap: 14px !important;
-      gap: 14px !important;
-    }
-    .advanced-admin {
-      margin-bottom: 0 !important;
-      padding-bottom: 0 !important;
-    }
-    .advanced-admin + .audit-log-card {
-      margin-top: 0 !important;
-    }
-
-    /* All collapsed cards use exactly the same outer size. */
     .settings-collapse-card.is-settings-collapsed {
-      box-sizing: border-box !important;
-      width: 100% !important;
-      height: 64px !important;
-      min-height: 64px !important;
-      max-height: 64px !important;
-      padding: 0 20px !important;
-      overflow: hidden !important;
-      align-items: center !important;
-      align-content: center !important;
+      box-sizing:border-box!important;width:100%!important;height:64px!important;min-height:64px!important;max-height:64px!important;
+      padding:0 20px!important;overflow:hidden!important;align-items:center!important;align-content:center!important;
+      border:1px solid #d8aa3e42!important;border-radius:16px!important;
+      background:linear-gradient(120deg,#570b08e8,#3b0605df)!important;box-shadow:0 14px 35px #24010044!important;
     }
-    .settings-collapse-card.is-settings-collapsed > .settings-collapse-header {
-      margin-top: 0 !important;
-      margin-bottom: 0 !important;
-      align-self: center !important;
-    }
+    .settings-collapse-card.is-settings-collapsed > .settings-collapse-header { margin-top:0!important;margin-bottom:0!important;align-self:center!important; }
 
-    .settings-collapse-header {
-      position: relative;
-      min-width: 0;
-      padding-right: 36px !important;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
-      -webkit-user-select: none;
+    .setting-card.settings-collapse-card > .setting-icon {
+      width:28px!important;height:28px!important;min-width:28px!important;display:grid!important;place-items:center!important;
+      border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;color:#efcc6c!important;
     }
+    .setting-card.settings-collapse-card > .setting-icon svg { width:25px!important;height:25px!important;stroke-width:1.8!important; }
+
+    .settings-collapse-header { position:relative;min-width:0;padding-right:36px!important;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none; }
     .settings-collapse-header::after {
-      content: '⌄';
-      position: absolute;
-      top: 50%;
-      right: 2px;
-      width: 28px;
-      height: 28px;
-      display: grid;
-      place-items: center;
-      transform: translateY(-50%);
-      border: 1px solid #b98332;
-      border-radius: 999px;
-      background: #3a0705b8;
-      color: #e8c66c;
-      font-size: 16px;
-      line-height: 1;
-      box-shadow: inset 0 1px #f7dd8c20;
-      transition: transform .18s ease, background .18s ease;
-      pointer-events: none;
+      content:'⌄';position:absolute;top:50%;right:2px;width:28px;height:28px;display:grid;place-items:center;transform:translateY(-50%);
+      border:1px solid #b98332;border-radius:999px;background:#3a0705b8;color:#e8c66c;font-size:16px;line-height:1;box-shadow:inset 0 1px #f7dd8c20;pointer-events:none;
     }
     .settings-collapse-card.is-settings-expanded > .settings-collapse-header::after,
-    .setting-card.is-settings-expanded > .setting-copy.settings-collapse-header::after {
-      content: '⌃';
-    }
-    .settings-collapse-header:active::after {
-      background: #64110de0;
-    }
+    .setting-card.is-settings-expanded > .setting-copy.settings-collapse-header::after { content:'⌃'; }
 
-    .setting-card.settings-collapse-card.is-settings-collapsed {
-      grid-template-columns: auto minmax(0,1fr) !important;
-      align-items: center !important;
-    }
-    .setting-card.settings-collapse-card.is-settings-collapsed > :not(.setting-icon):not(.setting-copy) {
-      display: none !important;
-    }
-    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy > :not(h3) {
-      display: none !important;
-    }
-    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy {
-      align-self: center !important;
-      margin: 0 !important;
-    }
-    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy h3 {
-      margin: 0 !important;
-    }
+    .setting-card.settings-collapse-card.is-settings-collapsed { grid-template-columns:28px minmax(0,1fr)!important;gap:16px!important;align-items:center!important; }
+    .setting-card.settings-collapse-card.is-settings-collapsed > :not(.setting-icon):not(.setting-copy) { display:none!important; }
+    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy > :not(h3) { display:none!important; }
+    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy { align-self:center!important;margin:0!important; }
+    .setting-card.settings-collapse-card.is-settings-collapsed > .setting-copy h3 { margin:0!important;line-height:1.15!important; }
 
     .notification-settings-card.settings-collapse-card.is-settings-collapsed > :not(.config-title),
     .admin-config-card.settings-collapse-card.is-settings-collapsed > :not(.config-title),
     .account-manager.settings-collapse-card.is-settings-collapsed > :not(.config-title),
-    .audit-log-card.settings-collapse-card.is-settings-collapsed > :not(.config-title) {
-      display: none !important;
-    }
-
-    .settings-collapse-card.is-settings-collapsed .config-title {
-      margin-bottom: 0 !important;
-    }
+    .audit-log-card.settings-collapse-card.is-settings-collapsed > :not(.config-title) { display:none!important; }
+    .settings-collapse-card.is-settings-collapsed .config-title { margin-bottom:0!important; }
     .settings-collapse-card.is-settings-collapsed .config-title > button,
-    .settings-collapse-card.is-settings-collapsed .config-title [role='button'] {
-      display: none !important;
-    }
+    .settings-collapse-card.is-settings-collapsed .config-title [role='button'] { display:none!important; }
 
-    @media (max-width: 740px) {
-      .advanced-admin {
-        padding-bottom: 0 !important;
-      }
-      .settings-collapse-card.is-settings-collapsed {
-        height: 64px !important;
-        min-height: 64px !important;
-        max-height: 64px !important;
-        padding: 0 18px !important;
-      }
-      .settings-collapse-header {
-        padding-right: 34px !important;
-      }
-      .settings-collapse-header::after {
-        right: 0;
-        width: 27px;
-        height: 27px;
-        font-size: 15px;
-      }
+    @media(max-width:740px){
+      .advanced-admin{padding-bottom:0!important}
+      .settings-collapse-card.is-settings-collapsed{height:64px!important;min-height:64px!important;max-height:64px!important;padding:0 18px!important}
+      .setting-card.settings-collapse-card.is-settings-collapsed{gap:14px!important}
+      .settings-collapse-header{padding-right:34px!important}
+      .settings-collapse-header::after{right:0;width:27px;height:27px;font-size:15px}
     }
   `}</style>;
 }
