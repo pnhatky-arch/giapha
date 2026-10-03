@@ -64,9 +64,6 @@ export default function SettingsCollapseCards() {
       });
     };
 
-    // The settings cards already exist when this client component mounts.
-    // Intentionally do not observe document mutations: Safari/iOS must never
-    // enter a DOM observer feedback loop because of our own class/ARIA writes.
     document.querySelectorAll<HTMLElement>(CARD_SELECTOR).forEach(installCard);
 
     const collapseAll = () => {
@@ -107,11 +104,16 @@ export default function SettingsCollapseCards() {
     }
     .settings-collapse-card.is-settings-collapsed > .settings-collapse-header { margin-top:0!important;margin-bottom:0!important;align-self:center!important; }
 
-    .setting-card.settings-collapse-card > .setting-icon {
+    .setting-card.settings-collapse-card > .setting-icon,
+    .local-data-center .setting-card > .setting-icon {
       width:28px!important;height:28px!important;min-width:28px!important;display:grid!important;place-items:center!important;
-      border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;color:#efcc6c!important;
+      border:0!important;border-radius:0!important;background:none!important;background-color:transparent!important;background-image:none!important;
+      box-shadow:none!important;outline:0!important;padding:0!important;color:#efcc6c!important;
     }
-    .setting-card.settings-collapse-card > .setting-icon svg { width:25px!important;height:25px!important;stroke-width:1.8!important; }
+    .setting-card.settings-collapse-card > .setting-icon svg,
+    .local-data-center .setting-card > .setting-icon svg { width:25px!important;height:25px!important;stroke-width:1.8!important; }
+    .local-data-center .setting-card > .setting-icon::before,
+    .local-data-center .setting-card > .setting-icon::after { display:none!important;content:none!important; }
 
     .settings-collapse-header { position:relative;min-width:0;padding-right:36px!important;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none; }
     .settings-collapse-header::after {
