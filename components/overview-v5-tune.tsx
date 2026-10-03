@@ -2,27 +2,57 @@
 
 import { useEffect } from 'react';
 
+async function extractEmbeddedJpeg(path: string) {
+  try {
+    const response = await fetch(`${path}?raster=6`, { cache: 'no-store' });
+    if (!response.ok) return path;
+    const svg = await response.text();
+    const match = svg.match(/href="(data:image\/jpeg;base64,[^"]+)"/);
+    return match?.[1] ?? path;
+  } catch {
+    return path;
+  }
+}
+
 export default function OverviewV5Tune() {
   useEffect(() => {
+    let disposed = false;
+    let dayRaster = '';
+    let nightRaster = '';
+
     const apply = () => {
       const day = document.querySelector<HTMLImageElement>('.pg4-hero-day');
       const night = document.querySelector<HTMLImageElement>('.pg4-hero-night');
-      if (day && !day.src.includes('v=5')) day.src = '/overview/hero-day.svg?v=5';
-      if (night && !night.src.includes('v=5')) night.src = '/overview/hero-night.svg?v=5';
-      document.documentElement.dataset.pgOverview = 'v5';
+      if (day && dayRaster && day.getAttribute('src') !== dayRaster) day.setAttribute('src', dayRaster);
+      if (night && nightRaster && night.getAttribute('src') !== nightRaster) night.setAttribute('src', nightRaster);
+      document.documentElement.dataset.pgOverview = 'v6';
     };
-    apply();
+
+    void Promise.all([
+      extractEmbeddedJpeg('/overview/hero-day.svg'),
+      extractEmbeddedJpeg('/overview/hero-night.svg'),
+    ]).then(([day, night]) => {
+      if (disposed) return;
+      dayRaster = day;
+      nightRaster = night;
+      apply();
+    });
+
     const observer = new MutationObserver(apply);
     observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    return () => {
+      disposed = true;
+      observer.disconnect();
+    };
   }, []);
 
   return <style>{`
-/* V5: match the approved imperial-Hue mobile reference more closely. */
+/* V6: direct JPEG hero rendering fixes iOS Safari blur from JPEG-inside-SVG. */
 .pg4-hero{height:365px!important;background:#5e0c08!important}
-.pg4-hero-art{object-position:center 50%!important;transform:none!important;filter:saturate(1.06) contrast(1.03)!important}
-.pg4-hero-shade{background:linear-gradient(180deg,rgba(35,2,2,.38) 0%,rgba(35,2,2,.08) 23%,transparent 47%,rgba(38,3,2,.06) 67%,rgba(38,3,2,.72) 100%)!important}
-html[data-hue-mode='dark'] .pg4-hero-shade{background:linear-gradient(180deg,rgba(1,7,12,.52) 0%,rgba(1,7,12,.12) 23%,transparent 48%,rgba(2,9,15,.08) 67%,rgba(2,9,15,.78) 100%)!important}
+.pg4-hero-art{object-position:center 50%!important;object-fit:cover!important;transform:none!important;filter:saturate(1.06) contrast(1.03)!important;image-rendering:auto!important}
+.pg4-hero-night{display:none}html[data-hue-mode='dark'] .pg4-hero-day{display:none!important}html[data-hue-mode='dark'] .pg4-hero-night{display:block!important}
+.pg4-hero-shade{background:linear-gradient(180deg,rgba(35,2,2,.26) 0%,rgba(35,2,2,.03) 23%,transparent 53%,rgba(38,3,2,.03) 72%,rgba(38,3,2,.58) 100%)!important}
+html[data-hue-mode='dark'] .pg4-hero-shade{background:linear-gradient(180deg,rgba(1,7,12,.38) 0%,rgba(1,7,12,.06) 23%,transparent 53%,rgba(2,9,15,.04) 72%,rgba(2,9,15,.62) 100%)!important}
 .pg4-top{top:calc(env(safe-area-inset-top) + 10px)!important;left:16px!important;right:12px!important;align-items:flex-start!important}
 .pg4-logo{width:82px!important;height:82px!important}
 .pg4-actions{gap:6px!important}
