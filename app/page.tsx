@@ -4,6 +4,7 @@ import GenerationSelectionGlow from '@/components/generation-selection-glow';
 import GenerationFilterInfo from '@/components/generation-filter-info';
 import BottomTabSelectionGlow from '@/components/bottom-tab-selection-glow';
 import EventsHueEnhancements from '@/components/events-hue-enhancements';
+import EventsFilterFitRow from '@/components/events-filter-fit-row';
 import TombSweepingEvents from '@/components/tomb-sweeping-events';
 import EventsCardLayoutFix from '@/components/events-card-layout-fix';
 import EventsMediaEnhancements from '@/components/events-media-enhancements';
@@ -25,5 +26,5 @@ export const dynamic = 'force-dynamic';
 export default async function HomePage() {
   const user = await getInternalUser();
   const canEdit = Boolean(user);
-  return <><FamilyApp user={user ? { displayName: user.displayName, username: user.username, role: user.role, permissions: user.permissions } : null} /><DynamicLanguageData /><AutoDisplayResolver /><GenerationSelectionGlow /><GenerationFilterInfo /><TreeMobileGenerations /><TreeSingleGenerationCards /><TreeTouchZoom /><TreeSvgExport /><TreeHeadingCenter /><BottomTabSelectionGlow /><EventsHueEnhancements /><TombSweepingEvents canEdit={canEdit} /><EventsCardLayoutFix /><EventsMediaEnhancements canEdit={canEdit} /><EventsEditPermissionFix canEdit={canEdit} /><MaterialsMobileTune /><MaterialsMediaStateFix /><SampleFixtureEnhancements /><SystemBackupEnhancements /></>;
+  return <><FamilyApp user={user ? { displayName: user.displayName, username: user.username, role: user.role, permissions: user.permissions } : null} /><DynamicLanguageData /><AutoDisplayResolver /><GenerationSelectionGlow /><GenerationFilterInfo /><TreeMobileGenerations /><TreeSingleGenerationCards /><TreeTouchZoom /><TreeSvgExport /><TreeHeadingCenter /><BottomTabSelectionGlow /><EventsHueEnhancements /><EventsFilterFitRow /><TombSweepingEvents canEdit={canEdit} /><EventsCardLayoutFix /><EventsMediaEnhancements canEdit={canEdit} /><EventsEditPermissionFix canEdit={canEdit} /><MaterialsMobileTune /><MaterialsMediaStateFix /><SampleFixtureEnhancements /><SystemBackupEnhancements /></>;
 }
