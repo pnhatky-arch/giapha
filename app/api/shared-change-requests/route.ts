@@ -3,71 +3,16 @@ import { getDatabase, writeAuditLog } from '@/db';
 import { getInternalUser } from '@/app/internal-auth';
 
 const MAX_PAYLOAD = 4_000_000;
-const allowedKinds = new Set(['family','member','event','material','media','settings']);
-
-type Change = { id: string; kind: string; action: 'create'|'update'|'delete'; label: string; before?: unknown; after?: unknown };
-
-function validChanges(value: unknown): value is Change[] {
-  return Array.isArray(value) && value.length > 0 && value.length <= 500 && value.every((item) => {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
-    const row = item as Partial<Change>;
-    return typeof row.id === 'string' && row.id.length <= 160 && typeof row.kind === 'string' && allowedKinds.has(row.kind)
-      && (row.action === 'create' || row.action === 'update' || row.action === 'delete')
-      && typeof row.label === 'string' && row.label.length <= 200;
-  });
-}
-
-export async function GET() {
-  const user = await getInternalUser();
-  if (!user) return NextResponse.json({ message: 'Cần đăng nhập.' }, { status: 401 });
-  const db = getDatabase();
-  const query = user.role === 'super_admin'
-    ? db.prepare(`SELECT id, requester_username, device_label, summary, payload, status, reviewer_username, review_note, created_at, reviewed_at FROM shared_change_requests ORDER BY created_at DESC LIMIT 100`)
-    : db.prepare(`SELECT id, requester_username, device_label, summary, payload, status, reviewer_username, review_note, created_at, reviewed_at FROM shared_change_requests WHERE requester_id = ? ORDER BY created_at DESC LIMIT 50`).bind(user.id);
-  const result = await query.all();
-  return NextResponse.json({ requests: result.results });
-}
-
-export async function POST(request: Request) {
-  const user = await getInternalUser();
-  if (!user) return NextResponse.json({ message: 'Cần đăng nhập.' }, { status: 401 });
-  const body = await request.json().catch(() => null) as { changes?: unknown; deviceLabel?: unknown } | null;
-  if (!body || !validChanges(body.changes)) return NextResponse.json({ message: 'Danh sách thay đổi không hợp lệ.' }, { status: 400 });
-  const payload = JSON.stringify(body.changes);
-  if (payload.length > MAX_PAYLOAD) return NextResponse.json({ message: 'Gói dữ liệu vượt giới hạn.' }, { status: 413 });
-  const counts = body.changes.reduce<Record<string, number>>((acc, item) => { acc[item.kind] = (acc[item.kind] || 0) + 1; return acc; }, {});
-  const summary = Object.entries(counts).map(([kind,count]) => `${count} ${kind}`).join(' · ');
-  const id = crypto.randomUUID();
-  const now = Date.now();
-  await getDatabase().prepare(`INSERT INTO shared_change_requests (id, requester_id, requester_username, device_label, summary, payload, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)`)
-    .bind(id, user.id, user.username, typeof body.deviceLabel === 'string' ? body.deviceLabel.slice(0,120) : '', summary, payload, now).run();
-  await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: 'Gửi duyệt dữ liệu', entity: 'Dữ liệu chung', details: `Yêu cầu ${id}: ${summary}` });
-  return NextResponse.json({ ok: true, id, status: 'pending', summary });
-}
-
-export async function PATCH(request: Request) {
-  const user = await getInternalUser();
-  if (!user || user.role !== 'super_admin') return NextResponse.json({ message: 'Chỉ quản trị viên được duyệt dữ liệu chung.' }, { status: 403 });
-  const body = await request.json().catch(() => null) as { id?: string; decision?: 'approved'|'rejected'; note?: string } | null;
-  if (!body?.id || !['approved','rejected'].includes(body.decision || '')) return NextResponse.json({ message: 'Yêu cầu xử lý không hợp lệ.' }, { status: 400 });
-  const db = getDatabase();
-  const row = await db.prepare(`SELECT id, requester_username, payload, status FROM shared_change_requests WHERE id = ?`).bind(body.id).first<{id:string;requester_username:string;payload:string;status:string}>();
-  if (!row || row.status !== 'pending') return NextResponse.json({ message: 'Yêu cầu không còn ở trạng thái chờ duyệt.' }, { status: 409 });
-
-  // Approval is the only server-side gate allowed to mutate shared data. Domain-specific
-  // application is intentionally explicit; unsupported change kinds stay rejected rather than bypassing review.
-  const changes = JSON.parse(row.payload) as Change[];
-  if (body.decision === 'approved') {
-    for (const change of changes) {
-      if (change.kind === 'family' && change.action !== 'delete') {
-        const data = JSON.stringify(change.after ?? null);
-        await db.prepare(`INSERT INTO family_tree (id, data, updated_at, updated_by) VALUES ('primary', ?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at, updated_by=excluded.updated_by`).bind(data, Date.now(), user.id).run();
-      }
-    }
-  }
-  const now = Date.now();
-  await db.prepare(`UPDATE shared_change_requests SET status=?, reviewer_id=?, reviewer_username=?, review_note=?, reviewed_at=? WHERE id=? AND status='pending'`)
-    .bind(body.decision, user.id, user.username, String(body.note || '').slice(0,1000), now, body.id).run();
-  await writeAuditLog({ actorId: user.id, actorUsername: user.username, action: body.decision === 'approved' ? 'Duyệt dữ liệu' : 'Từ chối dữ liệu', entity: 'Dữ liệu chung', details: `Yêu cầu ${body.id} từ ${row.requester_username}` });
-  return NextResponse.json({ ok: true, status: body.decision });
-}
+const allowedKinds = new Set(['family','event','material']);
+type Change={id:string;kind:string;action:'create'|'update'|'delete';label:string;before?:unknown;after?:unknown};
+type FamilyAfter={family?:unknown;dataMode?:'sample'|'official'|'empty'};
+type EventEnvelope={eventKind?:'family'|'tomb';event?:Record<string,unknown>};
+type MaterialEnvelope={item?:Record<string,unknown>};
+function validChanges(value:unknown):value is Change[]{return Array.isArray(value)&&value.length>0&&value.length<=500&&value.every((item)=>{if(!item||typeof item!=='object'||Array.isArray(item))return false;const row=item as Partial<Change>;return typeof row.id==='string'&&row.id.length<=160&&typeof row.kind==='string'&&allowedKinds.has(row.kind)&&(row.action==='create'||row.action==='update'||row.action==='delete')&&typeof row.label==='string'&&row.label.length<=200;});}
+function eventKey(kind:'family'|'tomb'){return kind==='family'?'family_work_events':'tomb_sweeping_events';}
+async function applyEvent(db:D1Database,change:Change,userId:string){const after=change.after as EventEnvelope|undefined;const before=change.before as EventEnvelope|undefined;const kind=after?.eventKind??before?.eventKind;const event=after?.event??before?.event;const id=event&&typeof event.id==='string'?event.id:'';if(!kind||!id)throw new Error('Yêu cầu sự kiện thiếu định danh.');const key=eventKey(kind);const row=await db.prepare('SELECT value FROM app_settings WHERE key=?').bind(key).first<{value:string}>();let events:Record<string,unknown>[]=[];try{const parsed=JSON.parse(row?.value||'[]');if(Array.isArray(parsed))events=parsed;}catch{}if(change.action==='delete')events=events.filter((entry)=>entry.id!==id);else{const index=events.findIndex((entry)=>entry.id===id);if(index>=0)events[index]=after!.event!;else events.push(after!.event!);}await db.prepare(`INSERT INTO app_settings (key,value,updated_at,updated_by) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at,updated_by=excluded.updated_by`).bind(key,JSON.stringify(events),Date.now(),userId).run();}
+async function applyMaterial(db:D1Database,change:Change,username:string){const after=(change.after as MaterialEnvelope|undefined)?.item;const before=(change.before as MaterialEnvelope|undefined)?.item;const item=after??before;const id=item&&typeof item.id==='string'?item.id:'';if(!id)throw new Error('Yêu cầu tư liệu thiếu định danh.');if(change.action==='delete'){await db.prepare('DELETE FROM material_items WHERE id=?').bind(id).run();return;}const parentId=typeof after?.parent_id==='string'?after.parent_id:null;const kind=String(after?.kind||'');const title=after?.title;const content=after?.content;if(!['folder','note','link'].includes(kind)||typeof title!=='string'||typeof content!=='string')throw new Error('Tư liệu chờ duyệt không hợp lệ.');const now=Date.now();await db.prepare(`INSERT INTO material_items (id,parent_id,kind,title,content,created_by_username,updated_by_username,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id,kind=excluded.kind,title=excluded.title,content=excluded.content,updated_by_username=excluded.updated_by_username,updated_at=excluded.updated_at`).bind(id,parentId,kind,title,content,typeof after?.created_by_username==='string'?after.created_by_username:username,username,typeof after?.created_at==='number'?after.created_at:now,now).run();}
+async function applyChange(db:D1Database,change:Change,user:{id:string;username:string}){if(change.kind==='family'){const after=change.after as FamilyAfter|undefined;if(change.action==='delete'||after?.family===null)await db.prepare(`INSERT INTO family_tree (id,data,updated_at,updated_by) VALUES ('primary','null',?,?) ON CONFLICT(id) DO UPDATE SET data='null',updated_at=excluded.updated_at,updated_by=excluded.updated_by`).bind(Date.now(),user.id).run();else if(after?.family)await db.prepare(`INSERT INTO family_tree (id,data,updated_at,updated_by) VALUES ('primary',?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data,updated_at=excluded.updated_at,updated_by=excluded.updated_by`).bind(JSON.stringify(after.family),Date.now(),user.id).run();if(after?.dataMode)await db.prepare(`INSERT INTO app_settings (key,value,updated_at,updated_by) VALUES ('family_data_mode',?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at,updated_by=excluded.updated_by`).bind(after.dataMode,Date.now(),user.id).run();return;}if(change.kind==='event')return applyEvent(db,change,user.id);if(change.kind==='material')return applyMaterial(db,change,user.username);throw new Error('Loại thay đổi chưa được hỗ trợ.');}
+export async function GET(){const user=await getInternalUser();if(!user)return NextResponse.json({message:'Cần đăng nhập.'},{status:401});const db=getDatabase();const query=user.role==='super_admin'?db.prepare(`SELECT id,requester_username,device_label,summary,payload,status,reviewer_username,review_note,created_at,reviewed_at FROM shared_change_requests ORDER BY created_at DESC LIMIT 100`):db.prepare(`SELECT id,requester_username,device_label,summary,payload,status,reviewer_username,review_note,created_at,reviewed_at FROM shared_change_requests WHERE requester_id=? ORDER BY created_at DESC LIMIT 50`).bind(user.id);const result=await query.all();return NextResponse.json({requests:result.results});}
+export async function POST(request:Request){const user=await getInternalUser();if(!user)return NextResponse.json({message:'Cần đăng nhập.'},{status:401});const body=await request.json().catch(()=>null) as {changes?:unknown;deviceLabel?:unknown}|null;if(!body||!validChanges(body.changes))return NextResponse.json({message:'Danh sách thay đổi không hợp lệ.'},{status:400});const payload=JSON.stringify(body.changes);if(payload.length>MAX_PAYLOAD)return NextResponse.json({message:'Gói dữ liệu vượt giới hạn.'},{status:413});const counts=body.changes.reduce<Record<string,number>>((acc,item)=>{acc[item.kind]=(acc[item.kind]||0)+1;return acc;},{});const summary=Object.entries(counts).map(([kind,count])=>`${count} ${kind}`).join(' · ');const id=crypto.randomUUID();await getDatabase().prepare(`INSERT INTO shared_change_requests (id,requester_id,requester_username,device_label,summary,payload,status,created_at) VALUES (?,?,?,?,?,?,'pending',?)`).bind(id,user.id,user.username,typeof body.deviceLabel==='string'?body.deviceLabel.slice(0,120):'',summary,payload,Date.now()).run();await writeAuditLog({actorId:user.id,actorUsername:user.username,action:'Gửi duyệt dữ liệu',entity:'Hệ thống',details:`Yêu cầu ${id}: ${summary}`});return NextResponse.json({ok:true,id,status:'pending',summary});}
+export async function PATCH(request:Request){const user=await getInternalUser();if(!user||user.role!=='super_admin')return NextResponse.json({message:'Chỉ quản trị viên được duyệt dữ liệu chung.'},{status:403});const body=await request.json().catch(()=>null) as {id?:string;decision?:'approved'|'rejected';note?:string}|null;if(!body?.id||!['approved','rejected'].includes(body.decision||''))return NextResponse.json({message:'Yêu cầu xử lý không hợp lệ.'},{status:400});const db=getDatabase();const row=await db.prepare(`SELECT id,requester_username,payload,status FROM shared_change_requests WHERE id=?`).bind(body.id).first<{id:string;requester_username:string;payload:string;status:string}>();if(!row||row.status!=='pending')return NextResponse.json({message:'Yêu cầu không còn ở trạng thái chờ duyệt.'},{status:409});const changes=JSON.parse(row.payload) as Change[];try{if(body.decision==='approved')for(const change of changes)await applyChange(db,change,{id:user.id,username:user.username});}catch(error){return NextResponse.json({message:error instanceof Error?error.message:'Không thể áp dụng yêu cầu.'},{status:409});}await db.prepare(`UPDATE shared_change_requests SET status=?,reviewer_id=?,reviewer_username=?,review_note=?,reviewed_at=? WHERE id=? AND status='pending'`).bind(body.decision,user.id,user.username,String(body.note||'').slice(0,1000),Date.now(),body.id).run();await writeAuditLog({actorId:user.id,actorUsername:user.username,action:body.decision==='approved'?'Duyệt dữ liệu':'Từ chối dữ liệu',entity:'Hệ thống',details:`Yêu cầu ${body.id} từ ${row.requester_username}`});return NextResponse.json({ok:true,status:body.decision});}
