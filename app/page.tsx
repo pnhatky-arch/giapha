@@ -21,11 +21,12 @@ import TreeSvgExport from '@/components/tree-svg-export';
 import SampleFixtureEnhancements from '@/components/sample-fixture-enhancements';
 import SystemBackupEnhancements from '@/components/system-backup-enhancements';
 import SettingsCollapseCards from '@/components/settings-collapse-cards';
+import DeviceLocalSettings from '@/components/device-local-settings';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const user = await getInternalUser();
   const canEdit = Boolean(user);
-  return <><FamilyApp user={user ? { displayName: user.displayName, username: user.username, role: user.role, permissions: user.permissions } : null} /><DynamicLanguageData /><AutoDisplayResolver /><GenerationSelectionGlow /><GenerationFilterInfo /><TreeMobileGenerations /><TreeSingleGenerationCards /><TreeTouchZoom /><TreeSvgExport /><TreeHeadingCenter /><BottomTabSelectionGlow /><EventsHueEnhancements /><EventsFilterFitRow /><TombSweepingEvents canEdit={canEdit} /><EventsCardLayoutFix /><EventsMediaEnhancements canEdit={canEdit} /><EventsEditPermissionFix canEdit={canEdit} /><MaterialsMobileTune /><MaterialsMediaStateFix /><SampleFixtureEnhancements /><SystemBackupEnhancements /><SettingsCollapseCards /></>;
+  return <><DeviceLocalSettings /><FamilyApp user={user ? { displayName: user.displayName, username: user.username, role: user.role, permissions: user.permissions } : null} /><DynamicLanguageData /><AutoDisplayResolver /><GenerationSelectionGlow /><GenerationFilterInfo /><TreeMobileGenerations /><TreeSingleGenerationCards /><TreeTouchZoom /><TreeSvgExport /><TreeHeadingCenter /><BottomTabSelectionGlow /><EventsHueEnhancements /><EventsFilterFitRow /><TombSweepingEvents canEdit={canEdit} /><EventsCardLayoutFix /><EventsMediaEnhancements canEdit={canEdit} /><EventsEditPermissionFix canEdit={canEdit} /><MaterialsMobileTune /><MaterialsMediaStateFix /><SampleFixtureEnhancements /><SystemBackupEnhancements /><SettingsCollapseCards /></>;
 }
