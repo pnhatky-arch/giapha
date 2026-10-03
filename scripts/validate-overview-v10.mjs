@@ -8,8 +8,13 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const day = data.match(/DAY_HERO_DATA\s*=\s*'([^']+)'/s)?.[1] ?? '';
-const night = data.match(/NIGHT_HERO_DATA\s*=\s*'([^']+)'/s)?.[1] ?? '';
+function readConst(name) {
+  const match = data.match(new RegExp(`export const ${name}\\s*=\\s*(["'])(.*?)\\1;`, 's'));
+  return match?.[2] ?? '';
+}
+
+const day = readConst('DAY_HERO_DATA');
+const night = readConst('NIGHT_HERO_DATA');
 
 assert(day.startsWith('data:image/jpeg;base64,'), 'DAY hero must be an in-bundle JPEG data URL');
 assert(night.startsWith('data:image/jpeg;base64,'), 'NIGHT hero must be an in-bundle JPEG data URL');
