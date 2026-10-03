@@ -41,9 +41,14 @@ has('app/api/events/media/route.ts', "file.type === 'image/svg+xml'", 'event med
 
 // Guest/event UI guards and additive system UI must be mounted in the real page tree.
 const page = read('app/page.tsx');
-for (const component of ['EventsMediaEnhancements', 'EventsEditPermissionFix', 'EventsCardLayoutFix', 'TombSweepingEvents', 'SystemBackupEnhancements', 'DynamicLanguageData', 'TreeSvgExport']) {
+for (const component of ['EventsMediaEnhancements', 'EventsEditPermissionFix', 'EventsCardLayoutFix', 'TombSweepingEvents', 'SystemBackupEnhancements', 'DynamicLanguageData', 'TreeSvgExport', 'SettingsCollapseCards']) {
   assert(page.includes(`<${component}`), `app/page.tsx must mount ${component}`);
 }
+
+// Settings cards must enter the Settings tab collapsed and expose an explicit accessible toggle.
+has('components/settings-collapse-cards.tsx', 'is-settings-collapsed', 'settings cards must support a collapsed state');
+has('components/settings-collapse-cards.tsx', "header.setAttribute('aria-expanded'", 'settings card headers must expose expanded state');
+has('components/settings-collapse-cards.tsx', 'MutationObserver', 'settings collapse behavior must cover cards rendered after tab changes');
 
 // SVG tree export must preview before download and build a scalable vector from the canonical family API.
 has('components/tree-svg-export.tsx', "fetch('/api/family'", 'tree SVG export must use the canonical family API');
@@ -80,4 +85,4 @@ lacks('app/api/system-backup/route.ts', 'FROM sessions', 'system backup must not
 has('scripts/validate-sample-data.mjs', 'SAMPLE_MEMBER_COUNT', 'sample fixture validator must verify member count');
 has('scripts/validate-sample-data.mjs', "=== 6", 'sample fixture validator must enforce 6 generations');
 
-console.log('System contracts OK · secrets · auth · audit · D1 media · events · permissions · SVG export · dynamic i18n · reset · backup');
+console.log('System contracts OK · secrets · auth · audit · D1 media · events · permissions · settings collapse · SVG export · dynamic i18n · reset · backup');
