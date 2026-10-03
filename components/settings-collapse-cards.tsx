@@ -106,6 +106,21 @@ export default function SettingsCollapseCards() {
       transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
     }
 
+    /* Keep every settings card on the same vertical rhythm. */
+    .settings-grid,
+    .advanced-admin,
+    .admin-config-grid {
+      row-gap: 14px !important;
+      gap: 14px !important;
+    }
+    .advanced-admin {
+      margin-bottom: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .advanced-admin + .audit-log-card {
+      margin-top: 0 !important;
+    }
+
     .settings-collapse-header {
       position: relative;
       min-width: 0;
@@ -169,6 +184,9 @@ export default function SettingsCollapseCards() {
       display: none !important;
     }
 
+    .settings-collapse-card.is-settings-collapsed .config-title {
+      margin-bottom: 0 !important;
+    }
     .settings-collapse-card.is-settings-collapsed .config-title > button,
     .settings-collapse-card.is-settings-collapsed .config-title [role='button'] {
       display: none !important;
@@ -182,6 +200,9 @@ export default function SettingsCollapseCards() {
     }
 
     @media (max-width: 740px) {
+      .advanced-admin {
+        padding-bottom: 0 !important;
+      }
       .settings-collapse-header {
         padding-right: 34px !important;
       }
